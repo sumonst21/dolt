@@ -24,16 +24,15 @@ var aseBufferPool = &sync.Pool{New: newASEBuff}
 var aseBufferSize = 16 * 1024
 
 func newASEBuff() interface{} {
-	return make(types.KVPSlice, 0, aseBufferSize)
+	return make(types.KVPSlice, aseBufferSize)
 }
 
-type BuffPool struct{}
+type buffPool struct{}
 
-func (p BuffPool) Get() types.KVPSlice {
+func (p buffPool) Get() types.KVPSlice {
 	return aseBufferPool.Get().(types.KVPSlice)
 }
 
-func (p BuffPool) Put(s types.KVPSlice) {
-	// todo: reset len?
+func (p buffPool) Put(s types.KVPSlice) {
 	aseBufferPool.Put(s)
 }

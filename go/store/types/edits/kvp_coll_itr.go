@@ -28,13 +28,24 @@ type KVPCollItr struct {
 	nbf        *types.NomsBinFormat
 }
 
+var _ types.EditProvider = &KVPCollItr{}
+
 // NewItr creates a new KVPCollItr from a KVPCollection
 func NewItr(nbf *types.NomsBinFormat, coll *KVPCollection) *KVPCollItr {
 	firstSl := coll.slices[0]
 	firstKey := firstSl[0].Key
 	slSize := len(firstSl)
 
-	return &KVPCollItr{coll, false, 0, 0, firstSl, slSize, firstKey, nbf}
+	return &KVPCollItr{
+		coll:       coll,
+		done:       false,
+		slIdx:      0,
+		idx:        0,
+		currSl:     firstSl,
+		currSlSize: slSize,
+		currKey:    firstKey,
+		nbf:        nbf,
+	}
 }
 
 // Less returns whether the current key this iterator is less than the current key for another iterator
@@ -111,4 +122,30 @@ func (itr *KVPCollItr) Reset() {
 	itr.currSl = itr.coll.slices[0]
 	itr.currSlSize = len(itr.currSl)
 	itr.currKey = itr.currSl[0].Key
+}
+
+type RecyclingKVPCollIter struct {
+	*KVPCollItr
+	pool buffPool
+}
+
+var _ types.EditProvider = RecyclingKVPCollIter{}
+
+func NewRecyclingItr(nbf *types.NomsBinFormat, coll *KVPCollection) RecyclingKVPCollIter {
+	return RecyclingKVPCollIter{
+		KVPCollItr: NewItr(nbf, coll),
+		pool:       buffPool{},
+	}
+}
+
+func (rec RecyclingKVPCollIter) Next() (*types.KVP, error) {
+	kvp, exhausted, _ := rec.KVPCollItr.nextForDestructiveMerge()
+	if exhausted != nil {
+		rec.pool.Put(exhausted)
+	}
+	return kvp, nil
+}
+
+func (rec RecyclingKVPCollIter) Less(other RecyclingKVPCollIter) (bool, error) {
+	return rec.KVPCollItr.Less(other.KVPCollItr)
 }

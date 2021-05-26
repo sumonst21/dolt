@@ -59,6 +59,7 @@ func setTestBuffSize(s int) {
 
 func unsetTestBuffSize() {
 	aseBufferSize = stash
+	aseBufferPool = &sync.Pool{New: newASEBuff}
 	mu.Unlock()
 }
 

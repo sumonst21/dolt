@@ -31,15 +31,17 @@ type AsyncSortedEdits struct {
 	sortConcurrency int
 	closed          bool
 
+	accIdx       int
 	accumulating []types.KVP
-	sortedColls  []*KVPCollection
+	pool         buffPool
 
 	nbf *types.NomsBinFormat
 
-	sortWork  chan types.KVPSort
-	sortGroup *errgroup.Group
-	sortCtx   context.Context
-	sema      *semaphore.Weighted
+	sortedColls []*KVPCollection
+	sortWork    chan types.KVPSort
+	sortGroup   *errgroup.Group
+	sortCtx     context.Context
+	sema        *semaphore.Weighted
 }
 
 // NewAsyncSortedEdits creates an AsyncSortedEdits object that creates batches of size 'sliceSize' and kicks off
@@ -51,6 +53,7 @@ func NewAsyncSortedEdits(nbf *types.NomsBinFormat, asyncConcurrency, sortConcurr
 	return &AsyncSortedEdits{
 		sortConcurrency: sortConcurrency,
 		accumulating:    nil, // lazy alloc
+		pool:            buffPool{},
 		sortedColls:     nil,
 		nbf:             nbf,
 		sortWork:        sortCh,
@@ -63,13 +66,14 @@ func NewAsyncSortedEdits(nbf *types.NomsBinFormat, asyncConcurrency, sortConcurr
 // AddEdit adds an edit
 func (ase *AsyncSortedEdits) AddEdit(k types.LesserValuable, v types.Valuable) {
 	if ase.accumulating == nil {
-		// TODO: buffer pool
-		ase.accumulating = make([]types.KVP, 0, aseBufferSize)
+		ase.accumulating = ase.pool.Get()
+		ase.accIdx = 0
 	}
 
-	ase.accumulating = append(ase.accumulating, types.KVP{Key: k, Val: v})
-	//if len(ase.accumulating) == cap(ase.accumulating) {
-	if len(ase.accumulating) == aseBufferSize {
+	ase.accumulating[ase.accIdx] = types.KVP{Key: k, Val: v}
+	ase.accIdx++
+
+	if ase.accIdx >= len(ase.accumulating) {
 		coll := NewKVPCollection(ase.nbf, ase.accumulating)
 		// ase.accumulating is getting sorted asynchronously and
 		// in-place down below. We add it to |sortedColls| here.  By
@@ -89,7 +93,8 @@ func (ase *AsyncSortedEdits) AddEdit(k types.LesserValuable, v types.Valuable) {
 		if ase.sema.TryAcquire(1) {
 			ase.sortGroup.Go(ase.sortWorker)
 		}
-		ase.accumulating = make([]types.KVP, 0, aseBufferSize)
+		ase.accumulating = ase.pool.Get()
+		ase.accIdx = 0
 	}
 }
 
@@ -118,8 +123,9 @@ func (ase *AsyncSortedEdits) sortWorker() error {
 // will have undefined behavior.
 func (ase *AsyncSortedEdits) FinishedEditing() (types.EditProvider, error) {
 	ase.closed = true
+	ase.accumulating = ase.accumulating[:ase.accIdx]
 
-	if len(ase.accumulating) > 0 {
+	if ase.accIdx > 0 {
 		toSort := types.KVPSort{Values: ase.accumulating, NBF: ase.nbf}
 		select {
 		case ase.sortWork <- toSort:
@@ -228,7 +234,7 @@ func (ase *AsyncSortedEdits) iterator() types.EditProvider {
 	case 0:
 		return types.EmptyEditProvider{}
 	case 1:
-		return NewItr(ase.nbf, ase.sortedColls[0])
+		return NewRecyclingItr(ase.nbf, ase.sortedColls[0])
 	case 2:
 		return NewSortedEditItr(ase.nbf, ase.sortedColls[0], ase.sortedColls[1])
 	}

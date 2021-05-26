@@ -18,18 +18,22 @@ import "github.com/dolthub/dolt/go/store/types"
 
 // SortedEditItr is a KVPIterator implementation that takes two KVPCollItr and merges them as it iterates
 type SortedEditItr struct {
-	leftItr  *KVPCollItr
-	rightItr *KVPCollItr
+	leftItr  RecyclingKVPCollIter
+	rightItr RecyclingKVPCollIter
 	done     bool
 }
 
 // NewSortedEditItr creates an iterator from two KVPCollection references.  As the iterator iterates it
 // merges the collections and iterates in order
 func NewSortedEditItr(nbf *types.NomsBinFormat, left, right *KVPCollection) *SortedEditItr {
-	leftItr := NewItr(nbf, left)
-	rightItr := NewItr(nbf, right)
+	leftItr := NewRecyclingItr(nbf, left)
+	rightItr := NewRecyclingItr(nbf, right)
 
-	return &SortedEditItr{leftItr, rightItr, false}
+	return &SortedEditItr{
+		leftItr:  leftItr,
+		rightItr: rightItr,
+		done:     false,
+	}
 }
 
 // Next returns the next KVP

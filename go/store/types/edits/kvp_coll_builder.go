@@ -31,8 +31,9 @@ type KVPCollBuilder struct {
 
 // NewKVPCollBuilder creates a builder which can be used to
 func NewKVPCollBuilder() *KVPCollBuilder {
-	buffs := []types.KVPSlice{make(types.KVPSlice, aseBufferSize)}
-	currSl := make(types.KVPSlice, aseBufferSize)
+	pool := buffPool{}
+	buffs := []types.KVPSlice{pool.Get()}
+	currSl := pool.Get()
 
 	return &KVPCollBuilder{
 		filled:     nil,

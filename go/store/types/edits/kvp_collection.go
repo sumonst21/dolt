@@ -35,7 +35,13 @@ func newKVPColl(nbf *types.NomsBinFormat, maxSize, numSlices int, totalSize int6
 		panic("invalid params")
 	}
 
-	return &KVPCollection{maxSize, numSlices, totalSize, slices, nbf}
+	return &KVPCollection{
+		buffSize:  maxSize,
+		numSlices: numSlices,
+		totalSize: totalSize,
+		slices:    slices,
+		nbf:       nbf,
+	}
 }
 
 // Size returns the total number of elements in the collection
