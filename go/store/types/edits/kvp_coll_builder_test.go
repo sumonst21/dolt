@@ -23,7 +23,10 @@ import (
 )
 
 func TestAddKVP(t *testing.T) {
-	builder := NewKVPCollBuilder(2)
+	setTestBuffSize(2)
+	defer unsetTestBuffSize()
+
+	builder := NewKVPCollBuilder()
 	builder.AddKVP(types.KVP{Key: types.Uint(0), Val: types.NullValue})
 	builder.AddKVP(types.KVP{Key: types.Uint(1), Val: types.NullValue})
 	builder.AddKVP(types.KVP{Key: types.Uint(2), Val: types.NullValue})
@@ -52,7 +55,10 @@ func TestMoveRemaining(t *testing.T) {
 		types.Format_7_18,
 	}
 
-	builder := NewKVPCollBuilder(2)
+	setTestBuffSize(2)
+	defer unsetTestBuffSize()
+
+	builder := NewKVPCollBuilder()
 	builder.MoveRemaining(coll.Iterator())
 
 	result := builder.Build()
@@ -72,7 +78,10 @@ func TestAddKVPAndMoveRemaining(t *testing.T) {
 	sl := types.KVPSlice{{Key: types.Uint(1), Val: types.NullValue}, {Key: types.Uint(2), Val: types.NullValue}}
 	coll := NewKVPCollection(types.Format_7_18, sl)
 
-	builder := NewKVPCollBuilder(2)
+	setTestBuffSize(2)
+	defer unsetTestBuffSize()
+
+	builder := NewKVPCollBuilder()
 	builder.AddKVP(types.KVP{Key: types.Uint(0), Val: types.NullValue})
 	builder.MoveRemaining(coll.Iterator())
 

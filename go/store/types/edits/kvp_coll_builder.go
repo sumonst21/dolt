@@ -30,11 +30,19 @@ type KVPCollBuilder struct {
 }
 
 // NewKVPCollBuilder creates a builder which can be used to
-func NewKVPCollBuilder(buffSize int) *KVPCollBuilder {
-	buffs := []types.KVPSlice{make(types.KVPSlice, buffSize)}
-	currSl := make(types.KVPSlice, buffSize)
+func NewKVPCollBuilder() *KVPCollBuilder {
+	buffs := []types.KVPSlice{make(types.KVPSlice, aseBufferSize)}
+	currSl := make(types.KVPSlice, aseBufferSize)
 
-	return &KVPCollBuilder{nil, buffs, currSl, buffSize, 0, 0, buffSize}
+	return &KVPCollBuilder{
+		filled:     nil,
+		toFill:     buffs,
+		currSl:     currSl,
+		currSlSize: aseBufferSize,
+		currIdx:    0,
+		numItems:   0,
+		buffSize:   aseBufferSize,
+	}
 }
 
 // AddBuffer adds a buffer of KVPs that can be filled.

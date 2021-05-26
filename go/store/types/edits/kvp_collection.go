@@ -58,7 +58,7 @@ func (left *KVPCollection) DestructiveMerge(right *KVPCollection) (*KVPCollectio
 
 	lItr := left.Iterator()
 	rItr := right.Iterator()
-	resBuilder := NewKVPCollBuilder(left.buffSize)
+	resBuilder := NewKVPCollBuilder()
 
 	var done bool
 	var kvp *types.KVP

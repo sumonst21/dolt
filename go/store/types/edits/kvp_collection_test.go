@@ -79,6 +79,9 @@ func testKVPCollection(t *testing.T, rng *rand.Rand) {
 
 	t.Log("num collections:", numColls, "- buffer size", size)
 
+	setTestBuffSize(size)
+	defer unsetTestBuffSize()
+
 	for i := 0; i < numColls; i++ {
 		colls[i] = createKVPColl(rng, size)
 	}
