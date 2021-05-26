@@ -17,6 +17,7 @@ package edits
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -47,6 +48,20 @@ func TestAsyncSortedEdits(t *testing.T) {
 	}
 }
 
+var stash = 0
+var mu = &sync.Mutex{}
+
+func setTestBuffSize(s int) {
+	mu.Lock()
+	stash = aseBufferSize
+	aseBufferSize = s
+}
+
+func unsetTestBuffSize() {
+	aseBufferSize = stash
+	mu.Unlock()
+}
+
 func testASE(t *testing.T, rng *rand.Rand) {
 	const (
 		minKVPS = 1
@@ -67,11 +82,14 @@ func testASE(t *testing.T, rng *rand.Rand) {
 	asyncSortConcurrency := int(minAsyncSortCon + rng.Int31n(maxAsyncSortCon-minAsyncSortCon))
 	sortConcurrency := int(minSortCon + rng.Int31n(maxSortCon-minSortCon))
 
+	setTestBuffSize(buffSize)
+	defer unsetTestBuffSize()
+
 	name := fmt.Sprintf("kvps_%d_bs_%d_asc_%d_sc_%d", numKVPs, buffSize, asyncSortConcurrency, sortConcurrency)
 
 	t.Run(name, func(t *testing.T) {
 		kvps := createKVPs(rng, numKVPs)
-		asyncSorted := NewAsyncSortedEdits(types.Format_7_18, buffSize, asyncSortConcurrency, sortConcurrency)
+		asyncSorted := NewAsyncSortedEdits(types.Format_7_18, asyncSortConcurrency, sortConcurrency)
 
 		for _, kvp := range kvps {
 			asyncSorted.AddEdit(kvp.Key, kvp.Val)

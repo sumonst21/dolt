@@ -28,7 +28,6 @@ import (
 // send them in batches to be sorted.  Once all edits have been added the batches of edits can then
 // be merge sorted together.
 type AsyncSortedEdits struct {
-	sliceSize       int
 	sortConcurrency int
 	closed          bool
 
@@ -46,11 +45,10 @@ type AsyncSortedEdits struct {
 // NewAsyncSortedEdits creates an AsyncSortedEdits object that creates batches of size 'sliceSize' and kicks off
 // 'asyncConcurrency' go routines for background sorting of batches.  The final Sort call is processed with
 // 'sortConcurrency' go routines
-func NewAsyncSortedEdits(nbf *types.NomsBinFormat, sliceSize, asyncConcurrency, sortConcurrency int) *AsyncSortedEdits {
+func NewAsyncSortedEdits(nbf *types.NomsBinFormat, asyncConcurrency, sortConcurrency int) *AsyncSortedEdits {
 	group, groupCtx := errgroup.WithContext(context.TODO())
 	sortCh := make(chan types.KVPSort, asyncConcurrency*4)
 	return &AsyncSortedEdits{
-		sliceSize:       sliceSize,
 		sortConcurrency: sortConcurrency,
 		accumulating:    nil, // lazy alloc
 		sortedColls:     nil,
@@ -66,11 +64,12 @@ func NewAsyncSortedEdits(nbf *types.NomsBinFormat, sliceSize, asyncConcurrency, 
 func (ase *AsyncSortedEdits) AddEdit(k types.LesserValuable, v types.Valuable) {
 	if ase.accumulating == nil {
 		// TODO: buffer pool
-		ase.accumulating = make([]types.KVP, 0, ase.sliceSize)
+		ase.accumulating = make([]types.KVP, 0, aseBufferSize)
 	}
 
 	ase.accumulating = append(ase.accumulating, types.KVP{Key: k, Val: v})
-	if len(ase.accumulating) == ase.sliceSize {
+	//if len(ase.accumulating) == cap(ase.accumulating) {
+	if len(ase.accumulating) == aseBufferSize {
 		coll := NewKVPCollection(ase.nbf, ase.accumulating)
 		// ase.accumulating is getting sorted asynchronously and
 		// in-place down below. We add it to |sortedColls| here.  By
@@ -90,7 +89,7 @@ func (ase *AsyncSortedEdits) AddEdit(k types.LesserValuable, v types.Valuable) {
 		if ase.sema.TryAcquire(1) {
 			ase.sortGroup.Go(ase.sortWorker)
 		}
-		ase.accumulating = make([]types.KVP, 0, ase.sliceSize)
+		ase.accumulating = make([]types.KVP, 0, aseBufferSize)
 	}
 }
 

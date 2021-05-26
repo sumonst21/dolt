@@ -35,7 +35,7 @@ import (
 
 func init() {
 	types.CreateEditAccForMapEdits = func(nbf *types.NomsBinFormat) types.EditAccumulator {
-		return edits.NewAsyncSortedEdits(nbf, 16*1024, 4, 2)
+		return edits.NewAsyncSortedEdits(nbf, 4, 2)
 	}
 }
 
