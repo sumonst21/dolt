@@ -24,6 +24,7 @@ package nbs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -459,7 +460,13 @@ func (ts tableSet) Rebase(ctx context.Context, specs []tableSpec, stats *Stats) 
 			if !ae.IsSet() {
 				var err error
 				for _, existing := range ts.upstream {
-					h, err := existing.hash()
+					if idx >= len(merged.upstream) {
+						err = errors.New(fmt.Sprintf("INDEX_PROB ts.upstream: %+v, merged.upstream: %+v, tablesToOpen: %+v", ts.upstream, merged.upstream, tablesToOpen))
+						ae.SetIfError(err)
+						return
+					}
+					var h addr
+					h, err = existing.hash()
 					if err != nil {
 						ae.SetIfError(err)
 						return
@@ -468,6 +475,11 @@ func (ts tableSet) Rebase(ctx context.Context, specs []tableSpec, stats *Stats) 
 						merged.upstream[idx] = existing.Clone()
 						return
 					}
+				}
+				if idx >= len(merged.upstream) {
+					err = errors.New(fmt.Sprintf("INDEX_PROB ts.upstream: %+v, merged.upstream: %+v, tablesToOpen: %+v", ts.upstream, merged.upstream, tablesToOpen))
+					ae.SetIfError(err)
+					return
 				}
 				merged.upstream[idx], err = ts.p.Open(ctx, spec.name, spec.chunkCount, stats)
 				ae.SetIfError(err)
