@@ -16,6 +16,7 @@ package errhand
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"strings"
 
 	"github.com/fatih/color"
@@ -140,7 +141,7 @@ func (derr *DError) Verbose() string {
 		if vCause, ok := derr.cause.(VerboseError); ok {
 			causeStr = vCause.Verbose()
 		} else {
-			causeStr = derr.cause.Error()
+			causeStr = errors.Wrap(derr.cause, derr.cause.Error()).Error()
 		}
 
 		indentStr := indent(causeStr, "       ")
