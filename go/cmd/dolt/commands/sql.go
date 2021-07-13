@@ -17,7 +17,14 @@ package commands
 import (
 	"context"
 	"fmt"
+	remotesapi "github.com/dolthub/dolt/go/gen/proto/dolt/services/remotesapi/v1alpha1"
+	"github.com/dolthub/dolt/go/libraries/doltcore/grpcendpoint"
+	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
+	"github.com/dolthub/dolt/go/libraries/doltcore/remotestorage"
+	"github.com/dolthub/dolt/go/store/types"
+	"google.golang.org/grpc"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -256,6 +263,42 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 		}
 	}
 
+	host := os.Getenv("HOST")
+	if host == "" {
+		panic("supply HOST env")
+	}
+
+	remoteDDB, err := getRemoteDoltDatabase(ctx, dEnv, host, "level-test", "tatoeba-sentence-translations")
+	if err != nil {
+		panic(err)
+	}
+	refs, err := remoteDDB.GetHeadRefs(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	var master ref.DoltRef
+	for _, r := range refs {
+		if r.String() == "refs/heads/master" {
+			master = r
+			break
+		}
+	}
+
+	if master == nil {
+		panic("failed to get master ref")
+	}
+
+	cm, err := remoteDDB.ResolveCommitRef(ctx, master)
+	if err != nil {
+		panic(err)
+	}
+
+	initialRoot, err := cm.GetRootValue()
+	if err != nil {
+		panic(err)
+	}
+
 	sqlCtx := sql.NewContext(ctx,
 		sql.WithSession(sess),
 		sql.WithIndexRegistry(sql.NewIndexRegistry()),
@@ -269,9 +312,9 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 	roots := make(map[string]*doltdb.RootValue)
 
 	var name string
-	var root *doltdb.RootValue
-	for name, root = range initialRoots {
-		roots[name] = root
+	//var root *doltdb.RootValue
+	for name, _ = range initialRoots {
+		roots[name] = initialRoot
 	}
 
 	var currentDB string
@@ -279,6 +322,15 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 		sqlCtx.SetCurrentDatabase(name)
 		currentDB = name
 	}
+
+	remoteDB := dsqle.NewDatabase(name, env.DbData{
+		Ddb: remoteDDB,
+		Rsw: dEnv.RepoStateWriter(),
+		Rsr: dEnv.RepoStateReader(),
+		Drw: dEnv.DocsReadWriter(),
+	})
+
+	dbs := []dsqle.Database{remoteDB}
 
 	_, continueOnError := apr.GetValue(continueFlag)
 	if query, queryOK := apr.GetValue(QueryFlag); queryOK {
@@ -292,7 +344,7 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 			batchInput := strings.NewReader(query)
 			verr = execBatch(sqlCtx, readOnly, continueOnError, mrEnv, roots, batchInput, format)
 		} else {
-			verr = execQuery(sqlCtx, readOnly, mrEnv, roots, query, format)
+			verr = execQuery(sqlCtx, readOnly, mrEnv, roots, query, format, dbs)
 
 			if verr != nil {
 				return HandleVErrAndExitCode(verr, usage)
@@ -314,7 +366,7 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 		}
 
 		cli.PrintErrf("Executing saved query '%s':\n%s\n", savedQueryName, sq.Query)
-		verr = execQuery(sqlCtx, readOnly, mrEnv, roots, sq.Query, format)
+		verr = execQuery(sqlCtx, readOnly, mrEnv, roots, sq.Query, format, dbs)
 	} else if apr.Contains(listSavedFlag) {
 		hasQC, err := roots[currentDB].HasTable(ctx, doltdb.DoltQueryCatalogTableName)
 
@@ -328,7 +380,7 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 		}
 
 		query := "SELECT * FROM " + doltdb.DoltQueryCatalogTableName
-		verr = execQuery(sqlCtx, readOnly, mrEnv, roots, query, format)
+		verr = execQuery(sqlCtx, readOnly, mrEnv, roots, query, format, dbs)
 	} else {
 		// Run in either batch mode for piped input, or shell mode for interactive
 		runInBatchMode := true
@@ -451,8 +503,14 @@ func execQuery(
 	roots map[string]*doltdb.RootValue,
 	query string,
 	format resultFormat,
+	dbs []dsqle.Database,
 ) errhand.VerboseError {
-	dbs := CollectDBs(mrEnv)
+	//dbs := CollectDBs(mrEnv)
+	//dbs := make([]dsqle.Database, 0)
+	//for name, root := range roots {
+	//	dbs = append(dbs, newDatabase(name, root.D))
+	//}
+
 	se, err := newSqlEngine(sqlCtx, readOnly, mrEnv, roots, format, dbs...)
 	if err != nil {
 		return errhand.VerboseErrorFromError(err)
@@ -1559,4 +1617,30 @@ func (se *sqlEngine) ddl(ctx *sql.Context, ddl *sqlparser.DDL, query string) (sq
 	default:
 		return nil, nil, fmt.Errorf("Unhandled DDL action %v in query %v", ddl.Action, query)
 	}
+}
+
+func getRemoteDoltDatabase(ctx context.Context, dEnv *env.DoltEnv, host, orgName, repoName string) (*doltdb.DoltDB, error) {
+	endpoint, opts, err := dEnv.GetGRPCDialParams(grpcendpoint.Config{
+		Endpoint:     host,
+		WithEnvCreds: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	cc, err := grpc.Dial(endpoint, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	client := remotesapi.NewChunkStoreServiceClient(cc)
+	dcs, err := remotestorage.NewDoltChunkStore(ctx, types.Format_Default, orgName, repoName, cc.Target(), client)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := &http.Client{}
+	dcs = dcs.WithHTTPFetcher(httpClient)
+
+	return doltdb.DoltDBFromCS(dcs), nil
 }
