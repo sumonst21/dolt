@@ -35,8 +35,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	remotesapi "github.com/dolthub/dolt/go/gen/proto/dolt/services/remotesapi/v1alpha1"
+	"github.com/dolthub/dolt/go/gen/proto/ld/services/testchunkcache/v1alpha1"
 	"github.com/dolthub/dolt/go/libraries/utils/iohelp"
 	"github.com/dolthub/dolt/go/libraries/utils/tracing"
 	"github.com/dolthub/dolt/go/store/atomicerr"
@@ -86,10 +88,17 @@ const (
 var uploadRetryParams = backoff.NewExponentialBackOff()
 var downRetryParams = backoff.NewExponentialBackOff()
 
+var cacheClient testchunkcache.TestChunkCacheServiceClient
+
 func init() {
 	uploadRetryParams.MaxInterval = 5 * time.Second
 
 	downRetryParams.MaxInterval = 5 * time.Second
+
+	cc, err := grpc.Dial("localhost:9999", grpc.WithInsecure())
+	if err == nil {
+		cacheClient = testchunkcache.NewTestChunkCacheServiceClient(cc)
+	}
 }
 
 // Only hedge downloads of ranges < 4MB in length for now.
@@ -311,8 +320,27 @@ func (dcs *DoltChunkStore) GetManyCompressed(ctx context.Context, hashes hash.Ha
 		}
 	}
 
+	notCached2 := make([]hash.Hash, 0, len(hashes))
 	if len(notCached) > 0 {
-		err := dcs.readChunksAndCache(ctx, hashes, notCached, found)
+		for _, h := range notCached {
+			resp, err := cacheClient.GetChunk(ctx, &testchunkcache.GetChunkRequest{
+				Hash: h[:],
+			})
+			if err == nil && resp.Found {
+				cc, err := nbs.NewCompressedChunk(h, resp.Contents)
+				if err == nil {
+					found(cc)
+				} else {
+					notCached2 = append(notCached2, h)
+				}
+			} else {
+				notCached2 = append(notCached2, h)
+			}
+		}
+	}
+
+	if len(notCached2) > 0 {
+		err := dcs.readChunksAndCache(ctx, hashes, notCached2, found)
 
 		if err != nil {
 			return err
