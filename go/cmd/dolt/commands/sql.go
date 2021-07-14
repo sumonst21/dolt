@@ -46,6 +46,7 @@ import (
 	eventsapi "github.com/dolthub/dolt/go/gen/proto/dolt/services/eventsapi/v1alpha1"
 	"github.com/dolthub/dolt/go/libraries/doltcore/doltdb"
 	"github.com/dolthub/dolt/go/libraries/doltcore/env"
+	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
 	"github.com/dolthub/dolt/go/libraries/doltcore/schema"
 	dsqle "github.com/dolthub/dolt/go/libraries/doltcore/sqle"
 	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/dfunctions"
@@ -97,6 +98,7 @@ const (
 	disableBatchFlag = "disable-batch"
 	multiDBDirFlag   = "multi-db-dir"
 	continueFlag     = "continue"
+	wFlag            = "w"
 	welcomeMsg       = `# Welcome to the DoltSQL shell.
 # Statements must be terminated with ';'.
 # "exit" or "quit" (or Ctrl-D) to exit.`
@@ -150,6 +152,7 @@ func (cmd SqlCmd) createArgParser() *argparser.ArgParser {
 	ap.SupportsFlag(disableBatchFlag, "", "When issuing multiple statements, used to override more efficient batch processing to give finer control over session")
 	ap.SupportsString(multiDBDirFlag, "", "directory", "Defines a directory whose subdirectories should all be dolt data repositories accessible as independent databases within ")
 	ap.SupportsFlag(continueFlag, "c", "continue running queries on an error. Used for batch mode only.")
+	ap.SupportsFlag(wFlag, "w", "run against the default remote instead of against the local dolt clone")
 	return ap
 }
 
@@ -195,6 +198,8 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 	sess.Username = *dEnv.Config.GetStringOrDefault(env.UserNameKey, "")
 	sess.Email = *dEnv.Config.GetStringOrDefault(env.UserEmailKey, "")
 
+	_, isRemote := apr.GetValue(wFlag)
+
 	var mrEnv env.MultiRepoEnv
 	var initialRoots map[string]*doltdb.RootValue
 	var readOnly = false
@@ -203,19 +208,43 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 			return 2
 		}
 
-		mrEnv, err = env.DoltEnvAsMultiEnv(dEnv)
+		var remoteEnv env.DoltEnv
+
+		if isRemote {
+			remoteEnv := *dEnv
+			remote, verr := dEnv.GetDefaultRemote()
+			if verr != nil {
+				return HandleVErrAndExitCode(errhand.VerboseErrorFromError(verr), usage)
+			}
+			remoteDB, err := remote.GetRemoteDB(ctx, dEnv.DoltDB.Format())
+			if err != nil {
+				return HandleVErrAndExitCode(errhand.VerboseErrorFromError(verr), usage)
+			}
+			remoteEnv.DoltDB = remoteDB
+
+			mrEnv, err = env.DoltEnvAsMultiEnv(&remoteEnv)
+		} else {
+			mrEnv, err = env.DoltEnvAsMultiEnv(dEnv)
+		}
+
 		if err != nil {
 			return HandleVErrAndExitCode(errhand.VerboseErrorFromError(err), usage)
 		}
 
 		if apr.NArg() > 0 {
-			cs, err := parseCommitSpec(dEnv, apr)
+			var e *env.DoltEnv
+			if isRemote {
+				e = &remoteEnv
+			} else {
+				e = dEnv
+			}
 
+			cs, err := parseCommitSpec(e, apr)
 			if err != nil {
 				return HandleVErrAndExitCode(errhand.BuildDError("Invalid commit %s", apr.Arg(0)).SetPrintUsage().Build(), usage)
 			}
 
-			cm, err := dEnv.DoltDB.Resolve(ctx, cs, dEnv.RepoStateReader().CWBHeadRef())
+			cm, err := e.DoltDB.Resolve(ctx, cs, dEnv.RepoStateReader().CWBHeadRef())
 
 			if err != nil {
 				return HandleVErrAndExitCode(errhand.BuildDError("Invalid commit %s", apr.Arg(0)).SetPrintUsage().Build(), usage)
@@ -279,6 +308,13 @@ func (cmd SqlCmd) Exec(ctx context.Context, commandStr string, args []string, dE
 	if len(initialRoots) == 1 {
 		sqlCtx.SetCurrentDatabase(name)
 		currentDB = name
+	}
+
+	if isRemote {
+		err = sess.SetSessionVariable(sqlCtx, dsess.TransactionsDisabledSysVar, true)
+		if err != nil {
+			return HandleVErrAndExitCode(errhand.VerboseErrorFromError(err), usage)
+		}
 	}
 
 	_, continueOnError := apr.GetValue(continueFlag)
@@ -1431,9 +1467,23 @@ func getDbState(ctx context.Context, db dsqle.Database, mrEnv env.MultiRepoEnv) 
 		return dsess.InitialDbState{}, err
 	}
 
+	doltdb.PanicWorkingSetNotFound = false
 	ws, err := dEnv.WorkingSet(ctx)
+	doltdb.PanicWorkingSetNotFound = true
 	if err != nil {
-		return dsess.InitialDbState{}, err
+		if err == doltdb.ErrWorkingSetNotFound {
+			root, err := dEnv.WorkingRoot(ctx)
+			if err != nil {
+				return dsess.InitialDbState{}, err
+			}
+			wsRef, err := ref.WorkingSetRefForHead(dEnv.RepoStateReader().CWBHeadRef())
+			if err != nil {
+				return dsess.InitialDbState{}, err
+			}
+			ws = doltdb.EmptyWorkingSet(wsRef).WithWorkingRoot(root).WithStagedRoot(root)
+		} else {
+			return dsess.InitialDbState{}, err
+		}
 	}
 
 	return dsess.InitialDbState{

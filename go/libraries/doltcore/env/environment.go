@@ -127,7 +127,9 @@ func Load(ctx context.Context, hdp HomeDirProvider, fs filesys.Filesys, urlStr, 
 
 	if rsErr == nil && dbLoadErr == nil {
 		// If the working set isn't present in the DB, create it from the repo state. This step can be removed post 1.0.
+		doltdb.PanicWorkingSetNotFound = false
 		_, err := dEnv.WorkingSet(ctx)
+		doltdb.PanicWorkingSetNotFound = true
 		if err == doltdb.ErrWorkingSetNotFound {
 			err := dEnv.initWorkingSetFromRepoState(ctx)
 			if err != nil {
@@ -423,12 +425,25 @@ type RootsProvider interface {
 }
 
 func (dEnv *DoltEnv) Roots(ctx context.Context) (doltdb.Roots, error) {
-	ws, err := dEnv.WorkingSet(ctx)
+	headRoot, err := dEnv.HeadRoot(ctx)
 	if err != nil {
 		return doltdb.Roots{}, err
 	}
 
-	headRoot, err := dEnv.HeadRoot(ctx)
+	doltdb.PanicWorkingSetNotFound = false
+	ws, err := dEnv.WorkingSet(ctx)
+	doltdb.PanicWorkingSetNotFound = true
+	if err == doltdb.ErrWorkingSetNotFound {
+		root, err := dEnv.WorkingRoot(ctx)
+		if err != nil {
+			return doltdb.Roots{}, err
+		}
+		return doltdb.Roots{
+			Head:    headRoot,
+			Working: root,
+			Staged:  root,
+		}, nil
+	}
 	if err != nil {
 		return doltdb.Roots{}, err
 	}
@@ -442,7 +457,16 @@ func (dEnv *DoltEnv) Roots(ctx context.Context) (doltdb.Roots, error) {
 
 // WorkingRoot returns the working root for the current working branch
 func (dEnv *DoltEnv) WorkingRoot(ctx context.Context) (*doltdb.RootValue, error) {
+	doltdb.PanicWorkingSetNotFound = false
 	workingSet, err := dEnv.WorkingSet(ctx)
+	doltdb.PanicWorkingSetNotFound = true
+	if err == doltdb.ErrWorkingSetNotFound {
+		commit, cerr := dEnv.DoltDB.ResolveCommitRef(ctx, ref.NewBranchRef("refs/heads/master"))
+		if cerr != nil {
+			return nil, cerr
+		}
+		return commit.GetRootValue()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -470,7 +494,9 @@ func (dEnv *DoltEnv) UpdateWorkingRoot(ctx context.Context, newRoot *doltdb.Root
 	var h hash.Hash
 	var wsRef ref.WorkingSetRef
 
+	doltdb.PanicWorkingSetNotFound = false
 	ws, err := dEnv.WorkingSet(ctx)
+	doltdb.PanicWorkingSetNotFound = true
 	if err == doltdb.ErrWorkingSetNotFound {
 		// first time updating root
 		wsRef, err = ref.WorkingSetRefForHead(dEnv.RepoState.CWBHeadRef())
@@ -644,6 +670,9 @@ func (dEnv *DoltEnv) DbData() DbData {
 // StagedRoot returns the staged root value in the current working set
 func (dEnv *DoltEnv) StagedRoot(ctx context.Context) (*doltdb.RootValue, error) {
 	workingSet, err := dEnv.WorkingSet(ctx)
+	if err == doltdb.ErrWorkingSetNotFound {
+		return dEnv.WorkingRoot(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}

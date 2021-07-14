@@ -412,17 +412,25 @@ func (ddb *DoltDB) ResolveTag(ctx context.Context, tagRef ref.TagRef) (*Tag, err
 	return NewTag(ctx, tagRef.GetPath(), ddb.db, tagSt)
 }
 
+var PanicWorkingSetNotFound bool = false
+
 // ResolveWorkingSet takes a WorkingSetRef and returns the corresponding WorkingSet object.
 func (ddb *DoltDB) ResolveWorkingSet(ctx context.Context, workingSetRef ref.WorkingSetRef) (*WorkingSet, error) {
 	ds, err := ddb.db.GetDataset(ctx, workingSetRef.String())
 
 	if err != nil {
+		if PanicWorkingSetNotFound {
+			panic(ErrWorkingSetNotFound)
+		}
 		return nil, ErrWorkingSetNotFound
 	}
 
 	wsSt, hasHead := ds.MaybeHead()
 
 	if !hasHead {
+		if PanicWorkingSetNotFound {
+			panic(ErrWorkingSetNotFound)
+		}
 		return nil, ErrWorkingSetNotFound
 	}
 

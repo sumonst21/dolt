@@ -27,6 +27,7 @@ import (
 
 	"github.com/dolthub/dolt/go/libraries/doltcore/dbfactory"
 	"github.com/dolthub/dolt/go/libraries/doltcore/doltdb"
+	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
 	"github.com/dolthub/dolt/go/libraries/utils/filesys"
 )
 
@@ -69,8 +70,19 @@ func (mrEnv MultiRepoEnv) GetWorkingRoots(ctx context.Context) (map[string]*dolt
 	roots := make(map[string]*doltdb.RootValue)
 	err := mrEnv.Iter(func(name string, dEnv *DoltEnv) (stop bool, err error) {
 		root, err := dEnv.WorkingRoot(ctx)
+		if err == doltdb.ErrWorkingSetNotFound {
+			commit, cerr := dEnv.DoltDB.ResolveCommitRef(ctx, ref.NewBranchRef("refs/heads/master"))
+			if cerr != nil {
+				return true, cerr
+			}
+			root, err = commit.GetRootValue()
+			if err != nil {
+				panic(err)
+			}
+		}
 
 		if err != nil {
+			panic(err)
 			return true, err
 		}
 
