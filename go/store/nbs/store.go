@@ -109,10 +109,11 @@ func (nbs *NomsBlockStore) GetChunkLocations(hashes hash.HashSet) (map[hash.Hash
 	gr := toGetRecords(hashes)
 
 	ranges := make(map[hash.Hash]map[hash.Hash]Range)
-	f := func(css chunkSources) error {
+	f := func(css chunkSources, name string) error {
 		for _, cs := range css {
 			switch tr := cs.(type) {
 			case *mmapTableReader:
+				fmt.Println("DUSTIN: hitting mmapTableReader block")
 				offsetRecSlice, _ := tr.findOffsets(gr)
 				if len(offsetRecSlice) > 0 {
 					y, ok := ranges[hash.Hash(tr.h)]
@@ -135,6 +136,8 @@ func (nbs *NomsBlockStore) GetChunkLocations(hashes hash.HashSet) (map[hash.Hash
 					ranges[hash.Hash(tr.h)] = y
 				}
 			case *chunkSourceAdapter:
+				fmt.Printf("%s tableReader: %s\n", name, tr.h.String())
+
 				y, ok := ranges[hash.Hash(tr.h)]
 
 				if !ok {
@@ -172,13 +175,13 @@ func (nbs *NomsBlockStore) GetChunkLocations(hashes hash.HashSet) (map[hash.Hash
 		return nil
 	}
 
-	err := f(nbs.tables.upstream)
+	err := f(nbs.tables.upstream, "upstream")
 
 	if err != nil {
 		return nil, err
 	}
 
-	err = f(nbs.tables.novel)
+	err = f(nbs.tables.novel, "novel")
 
 	if err != nil {
 		return nil, err
