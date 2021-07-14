@@ -32,7 +32,6 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/dustin/go-humanize"
-	"github.com/fatih/color"
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/sync/errgroup"
 
@@ -431,7 +430,7 @@ func (gr *GetRange) GetDownloadFunc(ctx context.Context, stats StatsRecorder, fe
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(color.Error, "ran download for %d bytes.\n", rangeLen)
+		//fmt.Fprintf(color.Error, "ran download for %d bytes.\n", rangeLen)
 		// Send the chunk for each range included in GetRange.
 		for i := 0; i < len(gr.Ranges); i++ {
 			s, e := gr.ChunkByteRange(i)
