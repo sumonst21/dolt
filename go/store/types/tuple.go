@@ -850,3 +850,7 @@ func (t Tuple) String() string {
 func (t Tuple) HumanReadableString() string {
 	return t.String()
 }
+
+func (t Tuple) EncodedLen() int {
+	return len(t.valueImpl.buff)
+}
