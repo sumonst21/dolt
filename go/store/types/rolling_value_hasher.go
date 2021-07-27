@@ -38,6 +38,11 @@ const (
 	oldMaxChunkSize = 1 << 24
 	minChunkSize    = 1 << 10
 	maxChunkSize    = 1 << 13
+
+	easyPatternOne   = uint32(1<<8 - 1)
+	easyPatternTwo   = uint32(1<<8 - 1) << 8
+	easyPatternThree = uint32(1<<8 - 1) << 16
+	easyPatternFour  = uint32(1<<8 - 1) << 24
 )
 
 var TestRewrite bool = false
@@ -81,6 +86,7 @@ type rollingValueHasher struct {
 	salt            byte
 	sl              *sloppy.Sloppy
 	nbf             *NomsBinFormat
+	hits            [4]bool
 }
 
 func hashValueBytes(item sequenceItem, rv *rollingValueHasher) error {
@@ -120,7 +126,12 @@ func (rv *rollingValueHasher) hashByte(b byte, offset uint32) bool {
 		rv.bz.HashByte(b ^ rv.salt)
 		if TestRewrite {
 			if offset > minChunkSize {
-				rv.crossedBoundary = (rv.bz.Sum32()&rv.pattern == rv.pattern)
+				s32 := rv.bz.Sum32()
+				rv.hits[0] = rv.hits[0] || (s32 & easyPatternOne == easyPatternOne)
+				rv.hits[1] = rv.hits[1] || (s32 & easyPatternTwo == easyPatternTwo)
+				rv.hits[2] = rv.hits[2] || (s32 & easyPatternThree == easyPatternThree)
+				rv.hits[3] = rv.hits[3] || (s32 & easyPatternFour == easyPatternFour)
+				rv.crossedBoundary = rv.hits[0] && rv.hits[1] && rv.hits[2] && rv.hits[3]
 			}
 			if offset > maxChunkSize {
 				rv.crossedBoundary = true
@@ -137,6 +148,7 @@ func (rv *rollingValueHasher) hashByte(b byte, offset uint32) bool {
 
 func (rv *rollingValueHasher) Reset() {
 	rv.crossedBoundary = false
+	rv.hits = [4]bool{}
 	rv.bz = buzhash.NewBuzHash(rv.window)
 	rv.bw.reset()
 	rv.sl.Reset()
