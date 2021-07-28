@@ -73,6 +73,18 @@ func (db *database) chunkStore() chunks.ChunkStore {
 	return db.ChunkStore()
 }
 
+func (db *database) ChunkStore() chunks.ChunkStore {
+	return db.ValueStore.ChunkStore()
+}
+
+func (db *database) Root(ctx context.Context) (hash.Hash, error) {
+	return db.ChunkStore().Root(ctx)
+}
+
+func (db *database) FetchAllChunks(ctx context.Context, root hash.Hash, getF func(context.Context, hash.HashSet, func(*chunks.Chunk)) error, excludeF func(context.Context, hash.HashSet) (hash.HashSet, error)) error {
+	return db.ValueStore.FetchAllChunks(ctx, root, getF, excludeF)
+}
+
 func (db *database) Stats() interface{} {
 	return db.ChunkStore().Stats()
 }
@@ -463,6 +475,29 @@ func (db *database) Tag(ctx context.Context, ds Dataset, ref types.Ref, opts Tag
 			return db.doTag(ctx, ds.ID(), st)
 		},
 	)
+}
+
+func (db *database) EditDatasets(ctx context.Context, newDatasetsF func(context.Context, types.Map) (types.Map, error)) error {
+        var tryCommitErr error
+        for tryCommitErr = ErrOptimisticLockFailed; tryCommitErr == ErrOptimisticLockFailed; {
+		currentRootHash, err := db.rt.Root(ctx)
+		if err != nil {
+			return err
+		}
+
+		currentDatasets, err := db.Datasets(ctx)
+		if err != nil {
+			return err
+		}
+
+		newDatasets, err := newDatasetsF(ctx, currentDatasets)
+		if err != nil {
+			return err
+		}
+
+		tryCommitErr = db.tryCommitChunks(ctx, newDatasets, currentRootHash)
+	}
+	return tryCommitErr
 }
 
 // doTag manages concurrent access the single logical piece of mutable state: the current Root. It uses

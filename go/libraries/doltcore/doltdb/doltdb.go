@@ -115,6 +115,18 @@ func (ddb *DoltDB) WriteEmptyRepo(ctx context.Context, name, email string) error
 	return ddb.WriteEmptyRepoWithCommitTime(ctx, name, email, CommitNowFunc())
 }
 
+func (ddb *DoltDB) Root(ctx context.Context) (hash.Hash, error) {
+	return ddb.db.Root(ctx)
+}
+
+func (ddb *DoltDB) DatasDatabase() datas.Database {
+	return ddb.db
+}
+
+func (ddb *DoltDB) FetchAllChunks(ctx context.Context, root hash.Hash, getF func(context.Context, hash.HashSet, func(*chunks.Chunk)) error, excludeF func(context.Context, hash.HashSet) (hash.HashSet, error)) error {
+	return ddb.db.FetchAllChunks(ctx, root, getF, excludeF)
+}
+
 func (ddb *DoltDB) WriteEmptyRepoWithCommitTime(ctx context.Context, name, email string, t time.Time) error {
 	// precondition checks
 	name = strings.TrimSpace(name)
@@ -771,6 +783,10 @@ var branchRefFilter = map[ref.RefType]struct{}{ref.BranchRefType: {}}
 // GetBranches returns a list of all branches in the database.
 func (ddb *DoltDB) GetBranches(ctx context.Context) ([]ref.DoltRef, error) {
 	return ddb.GetRefsOfType(ctx, branchRefFilter)
+}
+
+func (ddb *DoltDB) ChunkStore() chunks.ChunkStore {
+	return ddb.db.ChunkStore()
 }
 
 type BranchWithHash struct {

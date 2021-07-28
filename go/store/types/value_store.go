@@ -26,6 +26,10 @@ import (
 	"errors"
 	"runtime"
 	"sync"
+	"sync/atomic"
+	"fmt"
+
+	"github.com/fatih/color"
 
 	"golang.org/x/sync/errgroup"
 
@@ -551,6 +555,146 @@ func (lvs *ValueStore) Commit(ctx context.Context, current, last hash.Hash) (boo
 	}()
 }
 
+func (lvs *ValueStore) FetchAllChunks(
+	ctx context.Context,
+	root hash.Hash,
+	getF func(context.Context, hash.HashSet, func(*chunks.Chunk)) error,
+	excludeF func(context.Context, hash.HashSet) (hash.HashSet, error)) error {
+	keepChunks := make(chan []hash.Hash, gcBuffSize)
+
+	eg, ctx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		i := 0
+		defer func() {
+			fmt.Fprintf(color.Output, "saw %d chunks\n", i)
+		}()
+		for {
+			select {
+			case chunks, ok := <-keepChunks:
+				if !ok {
+					return nil
+				}
+				i += len(chunks)
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	})
+
+//	eg.Go(func() error {
+//		return collector.MarkAndSweepChunks(ctx, root, keepChunks)
+//	})
+
+	keepHashes := func(hs []hash.Hash) error {
+		select {
+		case keepChunks <- hs:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	const batchSize = 16384
+	getbatches := func(high [][]hash.Hash, low [][]hash.Hash, leftover [][]hash.Hash) ([][]hash.Hash, [][]hash.Hash) {
+		var highres []hash.Hash
+		for _, hs := range high {
+			highres = append(highres, hs...)
+		}
+		if len(highres) > 0 {
+			return [][]hash.Hash{highres}, append(low, leftover...)
+		}
+
+		var next []hash.Hash
+		var res [][]hash.Hash
+		for _, hs := range append(low, leftover...) {
+			i := 0
+			for ; i+batchSize < len(hs); i += batchSize {
+				res = append(res, hs[i:i+batchSize])
+			}
+			if i < len(hs) {
+				next = append(next, hs[i:]...)
+			}
+			if len(next) >= batchSize {
+				res = append(res, next)
+				next = nil
+			}
+		}
+
+		if len(next) > 0 {
+			res = append(res, next)
+			next = nil
+		}
+
+		return res, nil
+	}
+
+	concurrency := runtime.GOMAXPROCS(0) - 1
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	nbf := lvs.nbf
+	if nbf == nil {
+		nbf = Format_LD_1
+	}
+	walker := newParallelRefWalker(ctx, nbf, concurrency)
+
+	eg.Go(func() error {
+		defer close(keepChunks)
+		defer walker.Close()
+
+		toVisit := [][]hash.Hash{{root}}
+		toVisitLow := [][]hash.Hash{{}}
+		var leftover [][]hash.Hash
+		visited := hash.NewHashSet(root)
+		for {
+			var batches [][]hash.Hash
+			batches, leftover = getbatches(toVisit, toVisitLow, leftover)
+			if len(batches) == 0 && len(leftover) == 0 {
+				break
+			}
+			toVisit = make([][]hash.Hash, len(batches))
+			toVisitLow = make([][]hash.Hash, len(batches))
+			for i, batch := range batches {
+				err := keepHashes(batch)
+				if err != nil {
+					return err
+				}
+				remaining := hash.HashSet{}
+				for _, b := range batch {
+					remaining.Insert(b)
+				}
+				remaining, err = excludeF(ctx, remaining)
+				if err != nil {
+					return err
+				}
+				var j uint32
+				vals := make([]Value, len(remaining))
+				fmt.Fprintf(color.Output, "fetch %d chunks\n", len(remaining))
+				err = getF(ctx, remaining, func(c *chunks.Chunk) {
+					idx := atomic.AddUint32(&j, 1) - 1
+					var err error
+					vals[idx], err = DecodeValue(*c, lvs)
+					if err != nil {
+						panic(err)
+					}
+				})
+				if int(j) != len(remaining) {
+					return errors.New("dangling reference found in chunk store")
+				}
+				hashes, lowhashes, err := walker.GetRefs(visited, vals)
+				if err != nil {
+					return err
+				}
+				toVisit[i] = hashes
+				toVisitLow[i] = lowhashes
+			}
+		}
+		return nil
+	})
+
+	return eg.Wait()
+}
+
 // GC traverses the ValueStore from the root and removes unreferenced chunks from the ChunkStore
 func (lvs *ValueStore) GC(ctx context.Context) error {
 	collector, ok := lvs.cs.(chunks.ChunkStoreGarbageCollector)
@@ -631,7 +775,8 @@ func (lvs *ValueStore) GC(ctx context.Context) error {
 				if len(vals) != len(batch) {
 					return errors.New("dangling reference found in chunk store")
 				}
-				hashes, err := walker.GetRefs(visited, vals)
+				hashes, lowhashes, err := walker.GetRefs(visited, vals)
+				hashes = append(hashes, lowhashes...)
 				if err != nil {
 					return err
 				}

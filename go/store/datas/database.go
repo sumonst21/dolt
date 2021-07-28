@@ -57,6 +57,14 @@ type Database interface {
 	// Map<String, Ref<Commit>> where string is a datasetID.
 	Datasets(ctx context.Context) (types.Map, error)
 
+	Root(ctx context.Context) (hash.Hash, error)
+	FetchAllChunks(
+		ctx context.Context,
+		root hash.Hash,
+		getF func(context.Context, hash.HashSet, func(*chunks.Chunk)) error,
+		excludeF func(context.Context, hash.HashSet) (hash.HashSet, error)) error
+	EditDatasets(ctx context.Context, newDatasetsF func(context.Context, types.Map) (types.Map, error)) error
+
 	// GetDataset returns a Dataset struct containing the current mapping of
 	// datasetID in the above Datasets Map.
 	GetDataset(ctx context.Context, datasetID string) (Dataset, error)
@@ -162,6 +170,7 @@ type Database interface {
 	// level detail of the database that should infrequently be needed by
 	// clients.
 	chunkStore() chunks.ChunkStore
+	ChunkStore() chunks.ChunkStore
 }
 
 func NewDatabase(cs chunks.ChunkStore) Database {

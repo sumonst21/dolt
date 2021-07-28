@@ -24,7 +24,7 @@ import (
 
 type parallelRefWalkerWork struct {
 	vals ValueSlice
-	res  chan []hash.Hash
+	res  chan refWalkerRes
 }
 
 type parallelRefWalker struct {
@@ -35,6 +35,13 @@ type parallelRefWalker struct {
 	work        chan parallelRefWalkerWork
 }
 
+type refWalkerRes struct {
+	high []hash.Hash
+	low  []hash.Hash
+}
+
+const refWalkerHighLimit = 25
+
 func (w *parallelRefWalker) goWork() error {
 	for {
 		select {
@@ -44,10 +51,14 @@ func (w *parallelRefWalker) goWork() error {
 			if !ok {
 				return nil
 			}
-			var res []hash.Hash
+			var res refWalkerRes
 			for _, v := range work.vals {
 				err := v.WalkRefs(w.nbf, func(r Ref) error {
-					res = append(res, r.TargetHash())
+					if r.Height() >= refWalkerHighLimit {
+						res.high = append(res.high, r.TargetHash())
+					} else {
+						res.low = append(res.low, r.TargetHash())
+					}
 					return nil
 				})
 				if err != nil {
@@ -73,8 +84,8 @@ func (w *parallelRefWalker) sendWork(work parallelRefWalkerWork) error {
 	}
 }
 
-func (w *parallelRefWalker) sendAllWork(vals ValueSlice) (int, chan []hash.Hash, error) {
-	resCh := make(chan []hash.Hash, w.concurrency)
+func (w *parallelRefWalker) sendAllWork(vals ValueSlice) (int, chan refWalkerRes, error) {
+	resCh := make(chan refWalkerRes, w.concurrency)
 	i, numSent := 0, 0
 	step := len(vals)/w.concurrency + 1
 	for i < len(vals) {
@@ -94,26 +105,32 @@ func (w *parallelRefWalker) sendAllWork(vals ValueSlice) (int, chan []hash.Hash,
 	return numSent, resCh, nil
 }
 
-func (w *parallelRefWalker) GetRefs(visited hash.HashSet, vals ValueSlice) ([]hash.Hash, error) {
-	res := []hash.Hash{}
+func (w *parallelRefWalker) GetRefs(visited hash.HashSet, vals ValueSlice) ([]hash.Hash, []hash.Hash, error) {
+	var res refWalkerRes
 	numSent, resCh, err := w.sendAllWork(vals)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for i := 0; i < numSent; i++ {
 		select {
 		case b := <-resCh:
-			for _, r := range b {
+			for _, r := range b.high {
 				if !visited.Has(r) {
-					res = append(res, r)
+					res.high = append(res.high, r)
+					visited.Insert(r)
+				}
+			}
+			for _, r := range b.low {
+				if !visited.Has(r) {
+					res.low = append(res.low, r)
 					visited.Insert(r)
 				}
 			}
 		case <-w.ctx.Done():
-			return nil, w.ctx.Err()
+			return nil, nil, w.ctx.Err()
 		}
 	}
-	return res, nil
+	return res.high, res.low, nil
 }
 
 func (w *parallelRefWalker) Close() error {
