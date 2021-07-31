@@ -586,24 +586,24 @@ func (sess *Session) GetDoltDB(ctx *sql.Context, dbName string) (*doltdb.DoltDB,
 	return dbState.dbData.Ddb, true
 }
 
-func (sess *Session) GetDoltDbAutoIncrementTracker(ctx *sql.Context, dbName string) (globalstate.AutoIncrementTracker, bool) {
+func (sess *Session) GetDoltDbAutoIncrementTracker(ctx *sql.Context, dbName string) (globalstate.AutoIncrementTracker, error) {
 	dbState, ok, err := sess.LookupDbState(ctx, dbName)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
+
+	err = fmt.Errorf("could not get auto_increment_tracker for database %s", dbName)
 	if !ok {
-		return nil, false
+		return nil, err
+	}
+	if dbState.GlobalState == nil {
+		return nil, err
 	}
 
 	wsref := dbState.WorkingSet.Ref()
-
-	if dbState.GlobalState == nil {
-		return nil, false
-	}
-
 	tracker := dbState.GlobalState.GetAutoIncrementTracker(wsref)
 
-	return tracker, true
+	return tracker, nil
 }
 
 func (sess *Session) GetDbData(ctx *sql.Context, dbName string) (env.DbData, bool) {

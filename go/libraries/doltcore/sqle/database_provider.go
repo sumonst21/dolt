@@ -186,6 +186,7 @@ func dbRevisionForBranch(ctx context.Context, srcDb Database, revSpec string) (D
 		return Database{}, dsess.InitialDbState{}, err
 	}
 
+
 	dbName := srcDb.Name() + dbRevisionDelimiter + revSpec
 
 	static := staticRepoState{
@@ -211,6 +212,7 @@ func dbRevisionForBranch(ctx context.Context, srcDb Database, revSpec string) (D
 			Rsr: static,
 			Drw: static,
 		},
+		//GlobalState: srcDb.
 	}
 
 	return db, init, nil
@@ -246,6 +248,7 @@ func dbRevisionForCommit(ctx context.Context, srcDb Database, revSpec string) (R
 			Rsr: srcDb.rsr,
 			Drw: srcDb.drw,
 		},
+		GlobalState: nil,
 	}
 
 	return db, init, nil
