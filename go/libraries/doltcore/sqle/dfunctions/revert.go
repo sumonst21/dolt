@@ -115,7 +115,11 @@ func (r *RevertFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		}
 		stringType := typeinfo.StringDefaultType.ToSqlType()
 		commitFunc, err := NewDoltCommitFunc(ctx,
-			expression.NewLiteral("-a", stringType), expression.NewLiteral("-m", stringType), expression.NewLiteral(revertMessage, stringType))
+			expression.NewLiteral("-a", stringType),
+			expression.NewLiteral("-m", stringType),
+			expression.NewLiteral(revertMessage, stringType),
+			expression.NewLiteral("--author", stringType),
+			expression.NewLiteral("reverting user <author@fake.com>", stringType))
 		if err != nil {
 			return nil, err
 		}
