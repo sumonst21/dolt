@@ -53,7 +53,7 @@ import (
 const (
 	Version = "0.28.0"
 )
-
+// TESTING FUZZER
 var dumpDocsCommand = &commands.DumpDocsCmd{}
 var doltCommand = cli.NewSubCommandHandler("dolt", "it's git for data", []cli.Command{
 	commands.InitCmd{},
