@@ -74,6 +74,18 @@ func TestFatChunk(t *testing.T) {
 
 	m, err = me.Map(ctx)
 	require.NoError(t, err)
+	r, err := vrw.WriteValue(ctx, m)
+	require.NoError(t, err)
+	h, err := r.Hash(nbf)
+	require.NoError(t, err)
 
-	fmt.Println(m.Len())
+	// flush
+	cs := vrw.ChunkStore()
+	root, err := cs.Root(ctx)
+	require.NoError(t, err)
+	ok, err := cs.Commit(ctx, h, root)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	fmt.Println(cs.StatsSummary())
 }

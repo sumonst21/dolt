@@ -267,7 +267,7 @@ func (ms *MemoryStoreView) Stats() interface{} {
 }
 
 func (ms *MemoryStoreView) StatsSummary() string {
-	return "Unsupported"
+	return fmt.Sprintf("%d", ms.storage.Len())
 }
 
 func (ms *MemoryStoreView) Close() error {
