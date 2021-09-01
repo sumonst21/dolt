@@ -33,23 +33,23 @@ func SaveTrackedDocsFromWorking(ctx context.Context, dEnv *env.DoltEnv) error {
 		return err
 	}
 
-	return SaveTrackedDocs(ctx, dEnv.DocsReadWriter(), workingRoot, workingRoot, localDocs)
+	return SaveTrackedDocs(ctx, dEnv.RepoStateWriter(), workingRoot, workingRoot, localDocs)
 }
 
 // SaveDocsFromRoot saves docs from the root given to the filesystem, and could overwrite untracked docs.
-func SaveDocsFromRoot(ctx context.Context, root *doltdb.RootValue, dEnv *env.DoltEnv) error {
-	localDocs := dEnv.Docs
-	drw := dEnv.DocsReadWriter()
+func SaveDocsFromRoot(ctx context.Context, root *doltdb.RootValue, localDocs doltdocs.Docs, rsw env.RepoStateWriter) error {
+	//localDocs := dEnv.Docs
+	//drw := dEnv.Re()
 
 	docs, err := doltdocs.GetDocsFromRoot(ctx, root, doltdocs.GetDocNamesFromDocs(doltdocs.SupportedDocs)...)
 	if err != nil {
 		return err
 	}
 
-	err = drw.WriteDocsToDisk(docs)
+	err = rsw.WriteDocsToDisk(docs)
 	if err != nil {
 		// If we can't update docs on disk, attempt to revert the change
-		drw.WriteDocsToDisk(localDocs)
+		rsw.WriteDocsToDisk(localDocs)
 		return err
 	}
 
@@ -57,7 +57,7 @@ func SaveDocsFromRoot(ctx context.Context, root *doltdb.RootValue, dEnv *env.Dol
 }
 
 // SaveTrackedDocs writes the docs from the targetRoot to the filesystem. The working root is used to identify untracked docs, which are left unchanged.
-func SaveTrackedDocs(ctx context.Context, drw env.DocsReadWriter, workRoot, targetRoot *doltdb.RootValue, localDocs doltdocs.Docs) error {
+func SaveTrackedDocs(ctx context.Context, rsw env.RepoStateWriter, workRoot, targetRoot *doltdb.RootValue, localDocs doltdocs.Docs) error {
 	docDiffs, err := diff.NewDocDiffs(ctx, workRoot, nil, localDocs)
 	if err != nil {
 		return err
@@ -70,11 +70,11 @@ func SaveTrackedDocs(ctx context.Context, drw env.DocsReadWriter, workRoot, targ
 		return err
 	}
 
-	err = drw.WriteDocsToDisk(docs)
+	err = rsw.WriteDocsToDisk(docs)
 
 	if err != nil {
 		// If we can't update docs on disk, attempt to revert the change
-		_ = drw.WriteDocsToDisk(localDocs)
+		_ = rsw.WriteDocsToDisk(localDocs)
 		return err
 	}
 
@@ -148,7 +148,7 @@ func GetUnstagedDocs(ctx context.Context, dEnv *env.DoltEnv) (doltdocs.Docs, err
 		return nil, err
 	}
 
-	docsOnDisk, err := dEnv.DocsReadWriter().GetDocsOnDisk()
+	docsOnDisk, err := dEnv.RepoStateReader().GetDocsOnDisk()
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func GetUnstagedDocs(ctx context.Context, dEnv *env.DoltEnv) (doltdocs.Docs, err
 
 	unstagedDocs := doltdocs.Docs{}
 	for _, docName := range unstagedDocDiffs.Docs {
-		docAr, err := dEnv.DocsReadWriter().GetDocsOnDisk(docName)
+		docAr, err := dEnv.RepoStateReader().GetDocsOnDisk(docName)
 		if err != nil {
 			return nil, err
 		}
@@ -193,16 +193,16 @@ func SaveDocsFromWorkingExcludingFSChanges(ctx context.Context, dEnv *env.DoltEn
 		docsToSave = dEnv.Docs
 	}
 
-	return SaveTrackedDocs(ctx, dEnv.DocsReadWriter(), workingRoot, workingRoot, docsToSave)
+	return SaveTrackedDocs(ctx, dEnv.RepoStateWriter(), workingRoot, workingRoot, docsToSave)
 }
 
 // GetTablesOrDocs takes a slice of table or file names. Table names are returned as given. Supported doc names are
 // read from disk and their name replace with the names of the dolt_docs system table in the input slice. Supported docs
 // are returned in the second return param.
-func GetTablesOrDocs(drw env.DocsReadWriter, tablesOrFiles []string) (tables []string, docs doltdocs.Docs, err error) {
+func GetTablesOrDocs(rsr env.RepoStateReader, tablesOrFiles []string) (tables []string, docs doltdocs.Docs, err error) {
 	for i, tbl := range tablesOrFiles {
 		if _, ok := doltdocs.IsSupportedDoc(tbl); ok {
-			docAr, err := drw.GetDocsOnDisk(tbl)
+			docAr, err := rsr.GetDocsOnDisk(tbl)
 			if err != nil {
 				return nil, nil, err
 			}

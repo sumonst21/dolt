@@ -240,7 +240,7 @@ func buildInitalCommitMsg(ctx context.Context, dEnv *env.DoltEnv) (string, error
 		workingTblsWithViolations = []string{}
 	}
 
-	docsOnDisk, err := dEnv.DocsReadWriter().GetDocsOnDisk()
+	docsOnDisk, err := dEnv.RepoStateReader().GetDocsOnDisk()
 	if err != nil {
 		return "", err
 	}

@@ -19,6 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dolthub/dolt/go/cmd/dolt/errhand"
+	"github.com/dolthub/dolt/go/libraries/doltcore/env"
+	"github.com/dolthub/dolt/go/libraries/doltcore/env/actions"
 	"strings"
 
 	"github.com/dolthub/go-mysql-server/sql"
@@ -1094,4 +1097,22 @@ func diffTableHashes(headTableHashes, otherTableHashes map[string]hash.Hash) map
 	}
 
 	return diffs
+}
+
+func AbortMerge(ctx context.Context, doltEnv *env.DoltEnv) errhand.VerboseError {
+	roots, err := doltEnv.Roots(ctx)
+	if err != nil {
+		return errhand.VerboseErrorFromError(err)
+	}
+
+	err = actions.CheckoutAllTables(ctx, roots, doltEnv.DbData())
+	if err == nil {
+		err = doltEnv.AbortMerge(ctx)
+
+		if err == nil {
+			return nil
+		}
+	}
+
+	return errhand.BuildDError("fatal: failed to revert changes").AddCause(err).Build()
 }

@@ -129,6 +129,11 @@ func (d DoltMergeFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) 
 	}
 
 	branchName := apr.Arg(0)
+
+	rsr, err := sess.RepoStateReader(ctx, dbName)
+
+	mergeSpec, ok, err := merge.ParseMergeSpec(ctx, rsr, dEnv.DoltDB, msg, commitSpecStr, name, email, apr.Contains(cli.SquashParam), apr.Contains(cli.NoFFParam), apr.Contains(cli.ForceFlag), t)
+
 	mergeCommit, _, err := getBranchCommit(ctx, branchName, ddb)
 	if err != nil {
 		return noConflicts, err

@@ -85,7 +85,7 @@ func (cmd StatusCmd) Exec(ctx context.Context, commandStr string, args []string,
 		return 1
 	}
 
-	docsOnDisk, err := dEnv.DocsReadWriter().GetDocsOnDisk()
+	docsOnDisk, err := dEnv.RepoStateReader().GetDocsOnDisk()
 	if err != nil {
 		cli.PrintErrln(toStatusVErr(err).Verbose())
 		return 1

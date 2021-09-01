@@ -372,7 +372,7 @@ func cloneRemote(ctx context.Context, srcDB *doltdb.DoltDB, remoteName, branch s
 	}
 
 	if performPull {
-		err = actions.SaveDocsFromRoot(ctx, rootVal, dEnv)
+		err = actions.SaveDocsFromRoot(ctx, rootVal, dEnv.Docs, dEnv.RepoStateWriter())
 		if err != nil {
 			return errhand.BuildDError("error: failed to update docs on the filesystem").AddCause(err).Build()
 		}

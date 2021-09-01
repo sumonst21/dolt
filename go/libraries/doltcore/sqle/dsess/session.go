@@ -1156,6 +1156,23 @@ func (sess *Session) setSessionVarsForDb(ctx *sql.Context, dbName string) error 
 	return nil
 }
 
+func (sess *Session) RepoStateReader(ctx *sql.Context, dbName string) (env.RepoStateReader, error) {
+	dbState, ok := sess.dbStates[dbName]
+	if !ok {
+		return nil, errors.New("database not found")
+	}
+	return dbState.dbData.Rsr, nil
+}
+
+
+func (sess *Session) DoltDB(ctx *sql.Context, dbName string) (*doltdb.DoltDB, error) {
+	dbState, ok := sess.dbStates[dbName]
+	if !ok {
+		return nil, errors.New("database not found")
+	}
+	return dbState.dbData.Ddb, nil
+}
+
 // defineSystemVariables defines dolt-session variables in the engine as necessary
 func defineSystemVariables(name string) {
 	if _, _, ok := sql.SystemVariables.GetGlobal(name + HeadKeySuffix); !ok {

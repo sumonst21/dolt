@@ -543,27 +543,27 @@ func (dEnv *DoltEnv) UpdateWorkingSet(ctx context.Context, ws *doltdb.WorkingSet
 }
 
 type repoStateReader struct {
-	dEnv *DoltEnv
+	*DoltEnv
 }
 
 func (r *repoStateReader) CWBHeadRef() ref.DoltRef {
-	return r.dEnv.RepoState.CWBHeadRef()
+	return r.RepoState.CWBHeadRef()
 }
 
 func (r *repoStateReader) CWBHeadSpec() *doltdb.CommitSpec {
-	return r.dEnv.RepoState.CWBHeadSpec()
+	return r.RepoState.CWBHeadSpec()
 }
 
 func (r *repoStateReader) GetRemotes() (map[string]Remote, error) {
-	return r.dEnv.GetRemotes()
+	return r.GetRemotes()
 }
 
 func (r *repoStateReader) GetBranches() (map[string]BranchConfig, error) {
-	return r.dEnv.RepoState.Branches, nil
+	return r.RepoState.Branches, nil
 }
 
 func (r *repoStateReader) Roots(ctx context.Context) (doltdb.Roots, error) {
-	return r.dEnv.Roots(ctx)
+	return r.Roots(ctx)
 }
 
 func (dEnv *DoltEnv) RepoStateReader() RepoStateReader {
@@ -602,12 +602,12 @@ type docsReadWriter struct {
 }
 
 // GetDocsOnDisk reads the filesystem and returns all docs.
-func (d *docsReadWriter) GetDocsOnDisk(docNames ...string) (doltdocs.Docs, error) {
+func (r *repoStateReader) GetDocsOnDisk(docNames ...string) (doltdocs.Docs, error) {
 	if docNames != nil {
 		ret := make(doltdocs.Docs, len(docNames))
 
 		for i, name := range docNames {
-			doc, err := doltdocs.GetDoc(d.FS, name)
+			doc, err := doltdocs.GetDoc(r.FS, name)
 			if err != nil {
 				return nil, err
 			}
@@ -617,16 +617,12 @@ func (d *docsReadWriter) GetDocsOnDisk(docNames ...string) (doltdocs.Docs, error
 		return ret, nil
 	}
 
-	return doltdocs.GetSupportedDocs(d.FS)
+	return doltdocs.GetSupportedDocs(r.FS)
 }
 
 // WriteDocsToDisk creates or updates the dolt_docs table with docs.
-func (d *docsReadWriter) WriteDocsToDisk(docs doltdocs.Docs) error {
-	return docs.Save(d.FS)
-}
-
-func (dEnv *DoltEnv) DocsReadWriter() DocsReadWriter {
-	return &docsReadWriter{dEnv.FS}
+func (r *repoStateWriter) WriteDocsToDisk(docs doltdocs.Docs) error {
+	return docs.Save(r.FS)
 }
 
 func (dEnv *DoltEnv) HeadRoot(ctx context.Context) (*doltdb.RootValue, error) {
@@ -644,7 +640,6 @@ func (dEnv *DoltEnv) DbData() DbData {
 		Ddb: dEnv.DoltDB,
 		Rsw: dEnv.RepoStateWriter(),
 		Rsr: dEnv.RepoStateReader(),
-		Drw: dEnv.DocsReadWriter(),
 	}
 }
 

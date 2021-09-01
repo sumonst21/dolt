@@ -123,7 +123,7 @@ func (cmd CheckoutCmd) Exec(ctx context.Context, commandStr string, args []strin
 		return handleResetError(verr, usagePrt)
 	}
 
-	tbls, docs, err := actions.GetTablesOrDocs(dEnv.DocsReadWriter(), args)
+	tbls, docs, err := actions.GetTablesOrDocs(dEnv.RepoStateReader(), args)
 	if err != nil {
 		verr := errhand.BuildDError("error: unable to parse arguments.").AddCause(err).Build()
 		return HandleVErrAndExitCode(verr, usagePrt)

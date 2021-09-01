@@ -39,7 +39,6 @@ func CommitStaged(ctx context.Context, roots doltdb.Roots, mergeActive bool, mer
 	ddb := dbData.Ddb
 	rsr := dbData.Rsr
 	rsw := dbData.Rsw
-	drw := dbData.Drw
 
 	if props.Message == "" {
 		return nil, doltdb.ErrEmptyCommitMessage
@@ -60,7 +59,7 @@ func CommitStaged(ctx context.Context, roots doltdb.Roots, mergeActive bool, mer
 	}
 
 	if len(staged) == 0 && !mergeActive && !props.AllowEmpty {
-		docsOnDisk, err := drw.GetDocsOnDisk()
+		docsOnDisk, err :=  rsr.GetDocsOnDisk()
 		if err != nil {
 			return nil, err
 		}
@@ -101,41 +100,45 @@ func CommitStaged(ctx context.Context, roots doltdb.Roots, mergeActive bool, mer
 		}
 	}
 
+	// TODO : move state mutations out of merge logic
+	// TODO: need to update working set
+
 	// TODO: combine into a single update
-	err = rsw.UpdateStagedRoot(ctx, stagedRoot)
-	if err != nil {
-		return nil, err
-	}
+	//err = rsw.UpdateStagedRoot(ctx, stagedRoot)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
 
-	workingRoot, err := roots.Working.UpdateSuperSchemasFromOther(ctx, stagedTblNames, stagedRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	err = rsw.UpdateWorkingRoot(ctx, workingRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	meta, err := doltdb.NewCommitMetaWithUserTS(props.Name, props.Email, props.Message, props.Date)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: this is only necessary in some contexts (SQL). Come up with a more coherent set of interfaces to
-	//  rationalize where the root value writes happen before a commit is created.
-	h, err := ddb.WriteRootValue(ctx, stagedRoot)
-	if err != nil {
-		return nil, err
-	}
-
-	// logrus.Errorf("staged root is %s", stagedRoot.DebugString(ctx, true))
-
-	// DoltDB resolves the current working branch head ref to provide a parent commit.
-	c, err := ddb.CommitWithParentCommits(ctx, h, rsr.CWBHeadRef(), mergeParents, meta)
-	if err != nil {
-		return nil, err
-	}
+	//workingRoot, err := roots.Working.UpdateSuperSchemasFromOther(ctx, stagedTblNames, stagedRoot)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//err = rsw.UpdateWorkingRoot(ctx, workingRoot)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//meta, err := doltdb.NewCommitMetaWithUserTS(props.Name, props.Email, props.Message, props.Date)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//// TODO: this is only necessary in some contexts (SQL). Come up with a more coherent set of interfaces to
+	////  rationalize where the root value writes happen before a commit is created.
+	//h, err := ddb.WriteRootValue(ctx, stagedRoot)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//// logrus.Errorf("staged root is %s", stagedRoot.DebugString(ctx, true))
+	//
+	//// DoltDB resolves the current working branch head ref to provide a parent commit.
+	//c, err := ddb.CommitWithParentCommits(ctx, h, rsr.CWBHeadRef(), mergeParents, meta)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	return c, nil
 }

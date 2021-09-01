@@ -31,6 +31,8 @@ type RepoStateReader interface {
 	GetRemotes() (map[string]Remote, error)
 	GetBranches() (map[string]BranchConfig, error)
 	Roots(ctx context.Context) (doltdb.Roots, error)
+	// GetDocsOnDisk returns the docs in the filesytem optionally filtered by docNames.
+	GetDocsOnDisk(docNames ...string) (doltdocs.Docs, error)
 }
 
 type RepoStateWriter interface {
@@ -41,20 +43,18 @@ type RepoStateWriter interface {
 	SetCWBHeadRef(context.Context, ref.MarshalableRef) error
 	AddRemote(name string, url string, fetchSpecs []string, params map[string]string) error
 	RemoveRemote(ctx context.Context, name string) error
+	// WriteDocsToDisk updates the documents stored in the filesystem with the contents in docs.
+	WriteDocsToDisk(docs doltdocs.Docs) error
 }
 
 type DocsReadWriter interface {
-	// GetDocsOnDisk returns the docs in the filesytem optionally filtered by docNames.
-	GetDocsOnDisk(docNames ...string) (doltdocs.Docs, error)
-	// WriteDocsToDisk updates the documents stored in the filesystem with the contents in docs.
-	WriteDocsToDisk(docs doltdocs.Docs) error
+
 }
 
 type DbData struct {
 	Ddb *doltdb.DoltDB
 	Rsw RepoStateWriter
 	Rsr RepoStateReader
-	Drw DocsReadWriter
 }
 
 type BranchConfig struct {

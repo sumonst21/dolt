@@ -297,7 +297,7 @@ func getDiffRoots(ctx context.Context, dEnv *env.DoltEnv, args []string, isCache
 		return nil, nil, nil, err
 	}
 
-	docs, err := dEnv.DocsReadWriter().GetDocsOnDisk()
+	docs, err := dEnv.RepoStateReader().GetDocsOnDisk()
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -920,7 +920,7 @@ func createSplitter(ctx context.Context, vrw types.ValueReadWriter, fromSch sche
 }
 
 func diffDoltDocs(ctx context.Context, dEnv *env.DoltEnv, from, to *doltdb.RootValue, dArgs *diffArgs) error {
-	_, docs, err := actions.GetTablesOrDocs(dEnv.DocsReadWriter(), dArgs.docSet.AsSlice())
+	_, docs, err := actions.GetTablesOrDocs(dEnv.RepoStateReader(), dArgs.docSet.AsSlice())
 
 	if err != nil {
 		return err
