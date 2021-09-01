@@ -75,7 +75,7 @@ func (cf *CommitFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, err
 	}
 
-	roots, ok := dSess.GetRoots(ctx, dbName)
+	roots, ok := dSess.Roots(ctx, dbName)
 	if !ok {
 		return nil, fmt.Errorf("unknown database '%s'", dbName)
 	}

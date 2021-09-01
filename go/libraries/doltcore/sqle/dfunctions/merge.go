@@ -76,7 +76,7 @@ func (cf *MergeFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) {
 		return nil, sql.ErrDatabaseNotFound.New(dbName)
 	}
 
-	roots, ok := sess.GetRoots(ctx, dbName)
+	roots, ok := sess.Roots(ctx, dbName)
 	if !ok {
 		return nil, sql.ErrDatabaseNotFound.New(dbName)
 	}

@@ -76,7 +76,7 @@ func (d DoltMergeFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) 
 	if err != nil {
 		return noConflicts, err
 	}
-	roots, ok := sess.GetRoots(ctx, dbName)
+	roots, ok := sess.Roots(ctx, dbName)
 
 	// logrus.Errorf("heads are working: %s\nhead: %s", roots.Working.DebugString(ctx, true), roots.Head.DebugString(ctx, true))
 
@@ -323,7 +323,7 @@ func executeNoFFMerge(
 	}
 
 	// The roots need refreshing after the above
-	roots, _ := dSess.GetRoots(ctx, dbName)
+	roots, _ := dSess.Roots(ctx, dbName)
 
 	var mergeParentCommits []*doltdb.Commit
 	if ws.MergeActive() {

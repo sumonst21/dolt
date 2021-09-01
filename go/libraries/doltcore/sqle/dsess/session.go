@@ -152,7 +152,7 @@ type DatabaseSessionState struct {
 	TempTableEditSession *editor.TableEditSession
 }
 
-func (d DatabaseSessionState) GetRoots() doltdb.Roots {
+func (d DatabaseSessionState) Roots() doltdb.Roots {
 	if d.WorkingSet == nil {
 		return doltdb.Roots{
 			Head:    d.headRoot,
@@ -188,6 +188,7 @@ type InitialDbState struct {
 	ReadOnly     bool
 	WorkingSet   *doltdb.WorkingSet
 	DbData       env.DbData
+	Branches     map[string]env.BranchConfig
 	Remotes      map[string]env.Remote
 }
 
@@ -468,7 +469,7 @@ func (sess *Session) CreateDoltCommit(ctx *sql.Context, dbName string) error {
 	if err != nil {
 		return err
 	}
-	roots := sessionState.GetRoots()
+	roots := sessionState.Roots()
 
 	roots, err = actions.StageAllTablesNoDocs(ctx, roots)
 	if err != nil {
@@ -541,7 +542,7 @@ func (sess *Session) CreateSavepoint(ctx *sql.Context, savepointName, dbName str
 		return err
 	}
 
-	dtx.CreateSavepoint(savepointName, dbState.GetRoots().Working)
+	dtx.CreateSavepoint(savepointName, dbState.Roots().Working)
 	return nil
 }
 
@@ -616,7 +617,7 @@ func (sess *Session) GetDbData(ctx *sql.Context, dbName string) (env.DbData, boo
 }
 
 // GetRoots returns the current roots for a given database associated with the session
-func (sess *Session) GetRoots(ctx *sql.Context, dbName string) (doltdb.Roots, bool) {
+func (sess *Session) Roots(ctx *sql.Context, dbName string) (doltdb.Roots, bool) {
 	dbState, ok, err := sess.LookupDbState(ctx, dbName)
 	if err != nil {
 		return doltdb.Roots{}, false
@@ -625,7 +626,7 @@ func (sess *Session) GetRoots(ctx *sql.Context, dbName string) (doltdb.Roots, bo
 		return doltdb.Roots{}, false
 	}
 
-	return dbState.GetRoots(), true
+	return dbState.Roots(), true
 }
 
 // SetRoot sets a new root value for the session for the database named. This is the primary mechanism by which data
@@ -640,7 +641,7 @@ func (sess *Session) SetRoot(ctx *sql.Context, dbName string, newRoot *doltdb.Ro
 		return err
 	}
 
-	if rootsEqual(sessionState.GetRoots().Working, newRoot) {
+	if rootsEqual(sessionState.Roots().Working, newRoot) {
 		return nil
 	}
 
@@ -1041,7 +1042,7 @@ func (sess *Session) AddDB(ctx *sql.Context, dbState InitialDbState) error {
 	// TODO: get rid of all repo state reader / writer stuff. Until we do, swap out the reader with one of our own, and
 	//  the writer with one that errors out
 	sessionState.dbData = dbState.DbData
-	adapter := NewSessionStateAdapter(sess, db.Name(), dbState.Remotes)
+	adapter := NewSessionStateAdapter(sess, db.Name(), dbState.Branches, dbState.Remotes)
 	sessionState.dbData.Rsr = adapter
 	sessionState.dbData.Rsw = adapter
 	sessionState.readOnly, sessionState.detachedHead = dbState.ReadOnly, dbState.DetachedHead
@@ -1123,7 +1124,7 @@ func (sess *Session) setSessionVarsForDb(ctx *sql.Context, dbName string) error 
 		}
 	}
 
-	roots := state.GetRoots()
+	roots := state.Roots()
 
 	h, err := roots.Working.HashOf()
 	if err != nil {

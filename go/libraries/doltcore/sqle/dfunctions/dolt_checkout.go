@@ -68,7 +68,7 @@ func (d DoltCheckoutFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, erro
 		return 1, fmt.Errorf("Could not load database %s", dbName)
 	}
 
-	roots, ok := dSess.GetRoots(ctx, dbName)
+	roots, ok := dSess.Roots(ctx, dbName)
 	if !ok {
 		return 1, fmt.Errorf("Could not load database %s", dbName)
 	}

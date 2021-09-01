@@ -437,7 +437,7 @@ func (dEnv *DoltEnv) InitializeRepoState(ctx context.Context) error {
 }
 
 type RootsProvider interface {
-	GetRoots(ctx context.Context) (doltdb.Roots, error)
+	Roots(ctx context.Context) (doltdb.Roots, error)
 }
 
 // Roots returns the roots for this environment
@@ -556,6 +556,14 @@ func (r *repoStateReader) CWBHeadSpec() *doltdb.CommitSpec {
 
 func (r *repoStateReader) GetRemotes() (map[string]Remote, error) {
 	return r.dEnv.GetRemotes()
+}
+
+func (r *repoStateReader) GetBranches() (map[string]BranchConfig, error) {
+	return r.dEnv.RepoState.Branches, nil
+}
+
+func (r *repoStateReader) Roots(ctx context.Context) (doltdb.Roots, error) {
+	return r.dEnv.Roots(ctx)
 }
 
 func (dEnv *DoltEnv) RepoStateReader() RepoStateReader {

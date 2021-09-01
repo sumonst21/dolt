@@ -267,7 +267,7 @@ func (db Database) GetTableInsensitiveWithRoot(ctx *sql.Context, root *doltdb.Ro
 	case doltdb.CommitAncestorsTableName:
 		dt, found = dtables.NewCommitAncestorsTable(ctx, db.ddb), true
 	case doltdb.StatusTableName:
-		dt, found = dtables.NewStatusTable(ctx, db.name, db.ddb, dsess.NewSessionStateAdapter(sess, db.name, map[string]env.Remote{}), db.drw), true
+		dt, found = dtables.NewStatusTable(ctx, db.name, db.ddb, dsess.NewSessionStateAdapter(sess, db.name, map[string]env.BranchConfig{}, map[string]env.Remote{}), db.drw), true
 	}
 	if found {
 		return dt, found, nil
@@ -487,7 +487,7 @@ func (db Database) GetRoot(ctx *sql.Context) (*doltdb.RootValue, error) {
 		return nil, fmt.Errorf("no root value found in session")
 	}
 
-	return dbState.GetRoots().Working, nil
+	return dbState.Roots().Working, nil
 }
 
 func (db Database) GetTemporaryTablesRoot(ctx *sql.Context) (*doltdb.RootValue, bool) {

@@ -29,6 +29,8 @@ type RepoStateReader interface {
 	CWBHeadRef() ref.DoltRef
 	CWBHeadSpec() *doltdb.CommitSpec
 	GetRemotes() (map[string]Remote, error)
+	GetBranches() (map[string]BranchConfig, error)
+	Roots(ctx context.Context) (doltdb.Roots, error)
 }
 
 type RepoStateWriter interface {

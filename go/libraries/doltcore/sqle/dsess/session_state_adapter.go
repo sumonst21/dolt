@@ -31,6 +31,7 @@ type SessionStateAdapter struct {
 	session *Session
 	dbName  string
 	remotes map[string]env.Remote
+	branches map[string]env.BranchConfig
 }
 
 func (s SessionStateAdapter) UpdateStagedRoot(ctx context.Context, newRoot *doltdb.RootValue) error {
@@ -38,7 +39,7 @@ func (s SessionStateAdapter) UpdateStagedRoot(ctx context.Context, newRoot *dolt
 	if !ok {
 		return fmt.Errorf("non-sql context passed to SessionStateAdapter")
 	}
-	roots, _ := s.session.GetRoots(sqlCtx, s.dbName)
+	roots, _ := s.session.Roots(sqlCtx, s.dbName)
 	roots.Staged = newRoot
 	return s.session.SetRoots(ctx.(*sql.Context), s.dbName, roots)
 }
@@ -48,7 +49,7 @@ func (s SessionStateAdapter) UpdateWorkingRoot(ctx context.Context, newRoot *dol
 	if !ok {
 		return fmt.Errorf("non-sql context passed to SessionStateAdapter")
 	}
-	roots, _ := s.session.GetRoots(sqlCtx, s.dbName)
+	roots, _ := s.session.Roots(sqlCtx, s.dbName)
 	roots.Working = newRoot
 	return s.session.SetRoots(ctx.(*sql.Context), s.dbName, roots)
 }
@@ -73,12 +74,12 @@ var _ env.RepoStateReader = SessionStateAdapter{}
 var _ env.RepoStateWriter = SessionStateAdapter{}
 var _ env.RootsProvider = SessionStateAdapter{}
 
-func NewSessionStateAdapter(session *Session, dbName string, remotes map[string]env.Remote) SessionStateAdapter {
-	return SessionStateAdapter{session: session, dbName: dbName, remotes: remotes}
+func NewSessionStateAdapter(session *Session, dbName string, branches map[string]env.BranchConfig, remotes map[string]env.Remote) SessionStateAdapter {
+	return SessionStateAdapter{session: session, dbName: dbName, branches: branches, remotes: remotes}
 }
 
-func (s SessionStateAdapter) GetRoots(ctx context.Context) (doltdb.Roots, error) {
-	return s.session.dbStates[s.dbName].GetRoots(), nil
+func (s SessionStateAdapter) Roots(ctx context.Context) (doltdb.Roots, error) {
+	return s.session.dbStates[s.dbName].Roots(), nil
 }
 
 func (s SessionStateAdapter) CWBHeadRef() ref.DoltRef {
@@ -111,6 +112,11 @@ func (s SessionStateAdapter) GetMergeCommit(ctx context.Context) (*doltdb.Commit
 
 func (s SessionStateAdapter) GetPreMergeWorking(ctx context.Context) (*doltdb.RootValue, error) {
 	return s.session.dbStates[s.dbName].WorkingSet.MergeState().PreMergeWorkingRoot(), nil
+}
+
+func (s SessionStateAdapter) GetBranches() (map[string]env.BranchConfig, error) {
+	return s.branches, nil
+
 }
 
 func (s SessionStateAdapter) GetRemotes() (map[string]env.Remote, error) {

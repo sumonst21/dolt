@@ -82,7 +82,7 @@ func newStatusItr(ctx *sql.Context, st *StatusTable) (*StatusItr, error) {
 	rp := st.rootsProvider
 	drw := st.drw
 
-	roots, err := rp.GetRoots(ctx)
+	roots, err := rp.Roots(ctx)
 	if err != nil {
 		return nil, err
 	}

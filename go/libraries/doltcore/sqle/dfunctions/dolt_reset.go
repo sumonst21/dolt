@@ -64,7 +64,7 @@ func (d DoltResetFunc) Eval(ctx *sql.Context, row sql.Row) (interface{}, error) 
 	}
 
 	// Get all the needed roots.
-	roots, ok := dSess.GetRoots(ctx, dbName)
+	roots, ok := dSess.Roots(ctx, dbName)
 	if !ok {
 		return 1, fmt.Errorf("Could not load database %s", dbName)
 	}

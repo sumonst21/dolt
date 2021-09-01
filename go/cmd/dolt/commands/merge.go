@@ -158,7 +158,12 @@ func (cmd MergeCmd) Exec(ctx context.Context, commandStr string, args []string, 
 				msg = m
 			}
 
-			mergeSpec, ok, err := merge.ParseMergeSpec(ctx, dEnv, msg, commitSpecStr, apr.Contains(cli.SquashParam), apr.Contains(cli.NoFFParam), apr.Contains(cli.ForceFlag), t)
+			name, email, err := merge.GetNameAndEmail(dEnv.Config)
+			if err != nil {
+				return handleCommitErr(ctx, dEnv, err, usage)
+			}
+
+			mergeSpec, ok, err := merge.ParseMergeSpec(ctx, dEnv.RepoStateReader(), dEnv.DoltDB, msg, commitSpecStr, name, email, apr.Contains(cli.SquashParam), apr.Contains(cli.NoFFParam), apr.Contains(cli.ForceFlag), t)
 			if err != nil {
 				return handleCommitErr(ctx, dEnv, errhand.VerboseErrorFromError(err), usage)
 			}

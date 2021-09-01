@@ -71,13 +71,13 @@ func GetNameAndEmail(cfg config.ReadableConfig) (string, string, error) {
 	return name, email, nil
 }
 
-func ParseMergeSpec(ctx context.Context, dEnv *env.DoltEnv, msg string, commitSpecStr string, squash bool, noff bool, force bool, date time.Time) (*MergeSpec, bool, error) {
+func ParseMergeSpec(ctx context.Context, rsr env.RepoStateReader, db *doltdb.DoltDB, msg, commitSpecStr, name, email string, squash, noff, force bool, date time.Time) (*MergeSpec, bool, error) {
 	cs1, err := doltdb.NewCommitSpec("HEAD")
 	if err != nil {
 		return nil, false, err
 	}
 
-	cm1, err := dEnv.DoltDB.Resolve(context.TODO(), cs1, dEnv.RepoStateReader().CWBHeadRef())
+	cm1, err := db.Resolve(context.TODO(), cs1, rsr.CWBHeadRef())
 	if err != nil {
 		return nil, false, err
 	}
@@ -87,7 +87,7 @@ func ParseMergeSpec(ctx context.Context, dEnv *env.DoltEnv, msg string, commitSp
 		return nil, false, err
 	}
 
-	cm2, err := dEnv.DoltDB.Resolve(context.TODO(), cs2, dEnv.RepoStateReader().CWBHeadRef())
+	cm2, err := db.Resolve(context.TODO(), cs2, rsr.CWBHeadRef())
 	if err != nil {
 		return nil, false, err
 	}
@@ -103,7 +103,7 @@ func ParseMergeSpec(ctx context.Context, dEnv *env.DoltEnv, msg string, commitSp
 
 	}
 
-	roots, err := dEnv.Roots(ctx)
+	roots, err := rsr.Roots(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -111,11 +111,6 @@ func ParseMergeSpec(ctx context.Context, dEnv *env.DoltEnv, msg string, commitSp
 	tblNames, workingDiffs, err := MergeWouldStompChanges(ctx, roots, cm2)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w; %s", ErrFailedToDetermineMergeability, err.Error())
-	}
-
-	name, email, err := GetNameAndEmail(dEnv.Config)
-	if err != nil {
-		return nil, false, err
 	}
 
 	return &MergeSpec{

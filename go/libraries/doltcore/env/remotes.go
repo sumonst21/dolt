@@ -25,7 +25,6 @@ import (
 	"github.com/dolthub/dolt/go/libraries/doltcore/dbfactory"
 	"github.com/dolthub/dolt/go/libraries/doltcore/doltdb"
 	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
-	"github.com/dolthub/dolt/go/libraries/utils/argparser"
 	"github.com/dolthub/dolt/go/libraries/utils/config"
 	"github.com/dolthub/dolt/go/libraries/utils/earl"
 	filesys2 "github.com/dolthub/dolt/go/libraries/utils/filesys"
@@ -88,7 +87,7 @@ func (r *Remote) GetRemoteDBWithoutCaching(ctx context.Context, nbf *types.NomsB
 	return doltdb.LoadDoltDBWithParams(ctx, nbf, r.Url, filesys2.LocalFS, params)
 }
 
-type PushOpts struct {
+type PushSpec struct {
 	SrcRef      ref.DoltRef
 	DestRef     ref.DoltRef
 	RemoteRef   ref.DoltRef
@@ -97,17 +96,17 @@ type PushOpts struct {
 	SetUpstream bool
 }
 
-func ParsePushArgs(ctx context.Context, apr *argparser.ArgParseResults, dEnv *DoltEnv, force bool, setUpstream bool) (*PushOpts, error) {
+func ParsePushArgs(ctx context.Context, rsr RepoStateReader, db *doltdb.DoltDB, remoteName string, args []string, force bool, setUpstream bool) (*PushSpec, error) {
 	var err error
-	remotes, err := dEnv.GetRemotes()
+	remotes, err := rsr.GetRemotes()
 
 	if err != nil {
 		return nil, err
 	}
 
-	remoteName := "origin"
+	//remoteName := "origin"
 
-	args := apr.Args()
+	//args := apr.Args()
 	if len(args) == 1 {
 		if _, ok := remotes[args[0]]; ok {
 			remoteName = args[0]
@@ -116,14 +115,20 @@ func ParsePushArgs(ctx context.Context, apr *argparser.ArgParseResults, dEnv *Do
 	}
 
 	remote, remoteOK := remotes[remoteName]
-	currentBranch := dEnv.RepoStateReader().CWBHeadRef()
-	upstream, hasUpstream := dEnv.RepoState.Branches[currentBranch.GetPath()]
+	currentBranch := rsr.CWBHeadRef()
+
+	// TODO : how to get branches?
+	branches, err := rsr.GetBranches()
+	if err != nil {
+		return nil, err
+	}
+	upstream, hasUpstream := branches[currentBranch.GetPath()]
 
 	var refSpec ref.RefSpec
 	if remoteOK && len(args) == 1 {
 		refSpecStr := args[0]
 
-		refSpecStr, err = disambiguateRefSpecStr(ctx, dEnv.DoltDB, refSpecStr)
+		refSpecStr, err = disambiguateRefSpecStr(ctx, db, refSpecStr)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +141,7 @@ func ParsePushArgs(ctx context.Context, apr *argparser.ArgParseResults, dEnv *Do
 		remoteName = args[0]
 		refSpecStr := args[1]
 
-		refSpecStr, err = disambiguateRefSpecStr(ctx, dEnv.DoltDB, refSpecStr)
+		refSpecStr, err = disambiguateRefSpecStr(ctx, db, refSpecStr)
 		if err != nil {
 			return nil, err
 		}
@@ -173,7 +178,7 @@ func ParsePushArgs(ctx context.Context, apr *argparser.ArgParseResults, dEnv *Do
 		return nil, fmt.Errorf("%w: '%s'", ErrUnknownRemote, remoteName)
 	}
 
-	hasRef, err := dEnv.DoltDB.HasRef(ctx, currentBranch)
+	hasRef, err := db.HasRef(ctx, currentBranch)
 
 	if err != nil {
 		return nil, ErrFailedToReadDb
@@ -202,7 +207,7 @@ func ParsePushArgs(ctx context.Context, apr *argparser.ArgParseResults, dEnv *Do
 		return nil, err
 	}
 
-	opts := &PushOpts{
+	opts := &PushSpec{
 		SrcRef:    src,
 		DestRef:   dest,
 		RemoteRef: remoteRef,

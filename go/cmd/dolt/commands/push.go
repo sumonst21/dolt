@@ -89,7 +89,11 @@ func (cmd PushCmd) Exec(ctx context.Context, commandStr string, args []string, d
 	help, usage := cli.HelpAndUsagePrinters(cli.GetCommandDocumentation(commandStr, pushDocs, ap))
 	apr := cli.ParseArgsOrDie(ap, args, help)
 
-	opts, err := env.ParsePushArgs(ctx, apr, dEnv, apr.Contains(cli.ForceFlag), apr.Contains(cli.SetUpstreamFlag))
+
+	remoteName := "origin"
+	args = apr.Args()
+
+	opts, err := env.ParsePushArgs(ctx, dEnv.RepoStateReader(), dEnv.DoltDB, remoteName, args, apr.Contains(cli.ForceFlag), apr.Contains(cli.SetUpstreamFlag))
 	if err != nil {
 		var verr errhand.VerboseError
 		switch err {
@@ -111,11 +115,30 @@ func (cmd PushCmd) Exec(ctx context.Context, commandStr string, args []string, d
 	}
 
 	var verr errhand.VerboseError
-	err = actions.DoPush(ctx, dEnv, opts, runProgFuncs, stopProgFuncs)
+	err = actions.DoPush(ctx, dEnv.TempTableFilesDir(), dEnv.RepoStateReader(), dEnv.DoltDB, opts, runProgFuncs, stopProgFuncs)
 	if err != nil {
 		verr = printInfoForPushError(err, opts.Remote, opts.DestRef, opts.RemoteRef)
+		return HandleVErrAndExitCode(verr, usage)
 	}
-	return HandleVErrAndExitCode(verr, usage)
+
+	// TODO: should we add a Rsw method for updating branches inside push?
+	// or handle differently between cli and sql
+	if opts.SetUpstream {
+		dEnv.RepoState.Branches[opts.SrcRef.GetPath()] = env.BranchConfig{
+			Merge: ref.MarshalableRef{
+				Ref: opts.DestRef,
+			},
+			Remote: opts.Remote.Name,
+		}
+
+		err := dEnv.RepoState.Save(dEnv.FS)
+
+		if err != nil {
+			err = fmt.Errorf("%w; %s", actions.ErrFailedToSaveRepoState, err.Error())
+		}
+	}
+
+	return HandleVErrAndExitCode(errhand.VerboseErrorFromError(err), usage)
 }
 
 const minUpdate = 100 * time.Millisecond

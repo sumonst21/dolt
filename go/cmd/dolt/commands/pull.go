@@ -111,7 +111,7 @@ func pullHelper(ctx context.Context, dEnv *env.DoltEnv, pullSpec *env.PullSpec) 
 
 		if remoteTrackRef != nil {
 
-			srcDBCommit, err := actions.FetchRemoteBranch(ctx, dEnv, pullSpec.Remote, srcDB, dEnv.DoltDB, pullSpec.Branch, remoteTrackRef, runProgFuncs, stopProgFuncs)
+			srcDBCommit, err := actions.FetchRemoteBranch(ctx, dEnv.TempTableFilesDir(), pullSpec.Remote, srcDB, dEnv.DoltDB, pullSpec.Branch, remoteTrackRef, runProgFuncs, stopProgFuncs)
 			if err != nil {
 				return err
 			}
@@ -122,7 +122,12 @@ func pullHelper(ctx context.Context, dEnv *env.DoltEnv, pullSpec *env.PullSpec) 
 			}
 
 			t := doltdb.CommitNowFunc()
-			mergeSpec, ok, err := merge.ParseMergeSpec(ctx, dEnv, pullSpec.Msg, remoteTrackRef.String(), pullSpec.Squash, pullSpec.Noff, pullSpec.Force, t)
+			name, email, err := merge.GetNameAndEmail(dEnv.Config)
+			if err != nil {
+				return err
+			}
+
+			mergeSpec, ok, err := merge.ParseMergeSpec(ctx,  dEnv.RepoStateReader(), dEnv.DoltDB, pullSpec.Msg, remoteTrackRef.String(), name, email, pullSpec.Squash, pullSpec.Noff, pullSpec.Force, t)
 			if err != nil {
 				return err
 			}
@@ -147,7 +152,7 @@ func pullHelper(ctx context.Context, dEnv *env.DoltEnv, pullSpec *env.PullSpec) 
 	if err != nil {
 		return err
 	}
-	err = actions.FetchFollowTags(ctx, dEnv, srcDB, dEnv.DoltDB, runProgFuncs, stopProgFuncs)
+	err = actions.FetchFollowTags(ctx, dEnv.TempTableFilesDir(), srcDB, dEnv.DoltDB, runProgFuncs, stopProgFuncs)
 
 	if err != nil {
 		return err
