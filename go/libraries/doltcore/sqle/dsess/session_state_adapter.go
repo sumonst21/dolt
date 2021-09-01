@@ -28,9 +28,9 @@ import (
 // SessionStateAdapter is an adapter for env.RepoStateReader in SQL contexts, getting information about the repo state
 // from the session.
 type SessionStateAdapter struct {
-	session *Session
-	dbName  string
-	remotes map[string]env.Remote
+	session  *Session
+	dbName   string
+	remotes  map[string]env.Remote
 	branches map[string]env.BranchConfig
 }
 

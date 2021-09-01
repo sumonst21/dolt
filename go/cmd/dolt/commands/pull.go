@@ -78,7 +78,7 @@ func (cmd PullCmd) Exec(ctx context.Context, commandStr string, args []string, d
 	apr := cli.ParseArgsOrDie(ap, args, help)
 
 	if apr.NArg() > 1 {
-		verr := errhand.BuildDError("dolt pull takes at most one arg").SetPrintUsage().Build()
+		verr := errhand.VerboseErrorFromError(actions.ErrInvalidPullArgs)
 		return HandleVErrAndExitCode(verr, usage)
 	}
 
@@ -122,12 +122,12 @@ func pullHelper(ctx context.Context, dEnv *env.DoltEnv, pullSpec *env.PullSpec) 
 			}
 
 			t := doltdb.CommitNowFunc()
-			name, email, err := merge.GetNameAndEmail(dEnv.Config)
+			name, email, err := env.GetNameAndEmail(dEnv.Config)
 			if err != nil {
 				return err
 			}
 
-			mergeSpec, ok, err := merge.ParseMergeSpec(ctx,  dEnv.RepoStateReader(), dEnv.DoltDB, pullSpec.Msg, remoteTrackRef.String(), name, email, pullSpec.Squash, pullSpec.Noff, pullSpec.Force, t)
+			mergeSpec, ok, err := merge.ParseMergeSpec(ctx, dEnv.RepoStateReader(), dEnv.DoltDB, pullSpec.Msg, remoteTrackRef.String(), name, email, pullSpec.Squash, pullSpec.Noff, pullSpec.Force, t)
 			if err != nil {
 				return err
 			}

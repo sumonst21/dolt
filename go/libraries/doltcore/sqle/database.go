@@ -200,7 +200,7 @@ func (db Database) GetTableInsensitiveWithRoot(ctx *sql.Context, root *doltdb.Ro
 	// NOTE: system tables are not suitable for caching
 	switch {
 	case strings.HasPrefix(lwrName, doltdb.DoltDiffTablePrefix):
-		suffix := strings.ToLower(tblName[len(doltdb.DoltDiffTablePrefix):])
+		suffix := tblName[len(doltdb.DoltDiffTablePrefix):]
 		head, err := sess.GetHeadCommit(ctx, db.name)
 		if err != nil {
 			return nil, false, err
@@ -211,14 +211,14 @@ func (db Database) GetTableInsensitiveWithRoot(ctx *sql.Context, root *doltdb.Ro
 		}
 		return dt, true, nil
 	case strings.HasPrefix(lwrName, doltdb.DoltCommitDiffTablePrefix):
-		suffix := strings.ToLower(tblName[len(doltdb.DoltCommitDiffTablePrefix):])
+		suffix := tblName[len(doltdb.DoltCommitDiffTablePrefix):]
 		dt, err := dtables.NewCommitDiffTable(ctx, suffix, db.ddb, root)
 		if err != nil {
 			return nil, false, err
 		}
 		return dt, true, nil
 	case strings.HasPrefix(lwrName, doltdb.DoltHistoryTablePrefix):
-		suffix := strings.ToLower(tblName[len(doltdb.DoltHistoryTablePrefix):])
+		suffix := tblName[len(doltdb.DoltHistoryTablePrefix):]
 		head, err := sess.GetHeadCommit(ctx, db.name)
 		if err != nil {
 			return nil, false, err
@@ -229,14 +229,14 @@ func (db Database) GetTableInsensitiveWithRoot(ctx *sql.Context, root *doltdb.Ro
 		}
 		return dt, true, nil
 	case strings.HasPrefix(lwrName, doltdb.DoltConfTablePrefix):
-		suffix := strings.ToLower(tblName[len(doltdb.DoltConfTablePrefix):])
+		suffix := tblName[len(doltdb.DoltConfTablePrefix):]
 		dt, err := dtables.NewConflictsTable(ctx, suffix, root, dtables.RootSetter(db))
 		if err != nil {
 			return nil, false, err
 		}
 		return dt, true, nil
 	case strings.HasPrefix(lwrName, doltdb.DoltConstViolTablePrefix):
-		suffix := strings.ToLower(tblName[len(doltdb.DoltConstViolTablePrefix):])
+		suffix := tblName[len(doltdb.DoltConstViolTablePrefix):]
 		dt, err := dtables.NewConstraintViolationsTable(ctx, suffix, root, dtables.RootSetter(db))
 		if err != nil {
 			return nil, false, err
@@ -562,7 +562,27 @@ func (db Database) DropTable(ctx *sql.Context, tableName string) error {
 		return err
 	}
 
+	err = db.dropTableFromAiTracker(ctx, tableName)
+	if err != nil {
+		return err
+	}
+
 	return db.SetRoot(ctx, newRoot)
+}
+
+// dropTableFromAiTracker grabs the auto increment tracker and removes the table named tableName from it.
+func (db Database) dropTableFromAiTracker(ctx *sql.Context, tableName string) error {
+	sess := dsess.DSessFromSess(ctx.Session)
+	ws, err := sess.WorkingSet(ctx, db.Name())
+
+	if err != nil {
+		return err
+	}
+
+	ait := db.gs.GetAutoIncrementTracker(ws.Ref())
+	ait.DropTable(tableName)
+
+	return nil
 }
 
 // CreateTable creates a table with the name and schema given.

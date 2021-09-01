@@ -101,7 +101,7 @@ func setupMergeableIndexes(t *testing.T, tableName, insertQuery string) (*sqle.E
 
 	// Get an updated root to use for the rest of the test
 	ctx := sql.NewEmptyContext()
-	roots, ok := dsess.DSessFromSess(sqlCtx.Session).GetRoots(ctx, mergeableDb.Name())
+	roots, ok := dsess.DSessFromSess(sqlCtx.Session).Roots(ctx, mergeableDb.Name())
 	require.True(t, ok)
 
 	return engine, dEnv, mergeableDb, []*indexTuple{

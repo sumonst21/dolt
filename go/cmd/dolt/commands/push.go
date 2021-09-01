@@ -89,13 +89,12 @@ func (cmd PushCmd) Exec(ctx context.Context, commandStr string, args []string, d
 	help, usage := cli.HelpAndUsagePrinters(cli.GetCommandDocumentation(commandStr, pushDocs, ap))
 	apr := cli.ParseArgsOrDie(ap, args, help)
 
-
 	remoteName := "origin"
 	args = apr.Args()
 
 	opts, err := env.ParsePushArgs(ctx, dEnv.RepoStateReader(), dEnv.DoltDB, remoteName, args, apr.Contains(cli.ForceFlag), apr.Contains(cli.SetUpstreamFlag))
+	var verr errhand.VerboseError
 	if err != nil {
-		var verr errhand.VerboseError
 		switch err {
 		case env.ErrNoUpstreamForBranch:
 			currentBranch := dEnv.RepoStateReader().CWBHeadRef()
@@ -114,7 +113,6 @@ func (cmd PushCmd) Exec(ctx context.Context, commandStr string, args []string, d
 		return HandleVErrAndExitCode(verr, usage)
 	}
 
-	var verr errhand.VerboseError
 	err = actions.DoPush(ctx, dEnv.TempTableFilesDir(), dEnv.RepoStateReader(), dEnv.DoltDB, opts, runProgFuncs, stopProgFuncs)
 	if err != nil {
 		verr = printInfoForPushError(err, opts.Remote, opts.DestRef, opts.RemoteRef)
