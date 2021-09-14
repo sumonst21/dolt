@@ -20,21 +20,23 @@ import (
 	"os"
 	"time"
 
-	"github.com/dolthub/dolt/go/store/chunks"
-	"github.com/dolthub/dolt/go/store/hash"
-
 	"github.com/dolthub/dolt/go/libraries/doltcore/doltdb"
 	"github.com/dolthub/dolt/go/libraries/doltcore/doltdocs"
 	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
+	"github.com/dolthub/dolt/go/libraries/utils/config"
+	"github.com/dolthub/dolt/go/store/chunks"
+	"github.com/dolthub/dolt/go/store/hash"
 )
 
-func NewMemoryDbData(ctx context.Context) (DbData, error) {
-	ddb, err := NewMemoryDoltDB(ctx)
+func NewMemoryDbData(ctx context.Context, cfg config.ReadableConfig) (DbData, error) {
+	initBranch := GetDefaultInitBranch(cfg)
+
+	ddb, err := NewMemoryDoltDB(ctx, initBranch)
 	if err != nil {
 		return DbData{}, err
 	}
 
-	rs, err := NewMemoryRepoState(ctx, ddb)
+	rs, err := NewMemoryRepoState(ctx, ddb, initBranch)
 	if err != nil {
 		return DbData{}, err
 	}
@@ -47,13 +49,13 @@ func NewMemoryDbData(ctx context.Context) (DbData, error) {
 	}, nil
 }
 
-func NewMemoryDoltDB(ctx context.Context) (*doltdb.DoltDB, error) {
+func NewMemoryDoltDB(ctx context.Context, initBranch string) (*doltdb.DoltDB, error) {
 	ts := &chunks.TestStorage{}
 	cs := ts.NewViewWithDefaultFormat()
 	ddb := doltdb.DoltDBFromCS(cs)
 
 	m := "memory"
-	err := ddb.WriteEmptyRepoWithCommitTimeAndDefaultBranch(ctx, "master", m, m, doltdb.CommitNowFunc())
+	err := ddb.WriteEmptyRepoWithCommitTimeAndDefaultBranch(ctx, initBranch, m, m, doltdb.CommitNowFunc())
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +63,8 @@ func NewMemoryDoltDB(ctx context.Context) (*doltdb.DoltDB, error) {
 	return ddb, nil
 }
 
-func NewMemoryRepoState(ctx context.Context, ddb *doltdb.DoltDB) (MemoryRepoState, error) {
-	branches, err := ddb.GetBranches(ctx)
-	if err != nil {
-		return MemoryRepoState{}, err
-	}
-	head := branches[0]
-
+func NewMemoryRepoState(ctx context.Context, ddb *doltdb.DoltDB, initBranch string) (MemoryRepoState, error) {
+	head := ref.NewBranchRef(initBranch)
 	rs := MemoryRepoState{
 		DoltDB: ddb,
 		Head:   head,
