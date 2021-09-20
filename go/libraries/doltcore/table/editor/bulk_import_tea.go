@@ -243,7 +243,7 @@ func (iea *BulkImportIEA) HasPartial(ctx context.Context, idxSch schema.Schema, 
 
 // Commit operation not supported on BulkImportIEA
 func (iea *BulkImportIEA) Commit(ctx context.Context, nbf *types.NomsBinFormat) error {
-	return errors.New("not supported")
+	return nil
 }
 
 // Rollback operation not supported on BulkImportIEA
