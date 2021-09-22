@@ -91,7 +91,10 @@ func TestWithSmallChunks(cb func()) {
 }
 
 type rollingValueHasher struct {
-	bw              binaryNomsWriter
+	bw  binaryNomsWriter
+	bw2 binaryNomsWriter
+	// bw2 iz hacks
+
 	bz              *buzhash.BuzHash
 	crossedBoundary bool
 	pattern, window uint32
@@ -101,10 +104,12 @@ type rollingValueHasher struct {
 }
 
 func hashValueBytes(item sequenceItem, rv *rollingValueHasher) error {
+	panic("assert hashValueBytes unused")
 	return rv.HashValue(item.(Value))
 }
 
 func hashValueByte(item sequenceItem, rv *rollingValueHasher) error {
+	panic("assert hashValueByte unused")
 	rv.HashByte(item.(byte))
 
 	return nil
@@ -113,9 +118,11 @@ func hashValueByte(item sequenceItem, rv *rollingValueHasher) error {
 func newRollingValueHasher(nbf *NomsBinFormat, salt byte) *rollingValueHasher {
 	pattern, window := chunkingConfig()
 	w := newBinaryNomsWriter()
+	w2 := newBinaryNomsWriter()
 
 	rv := &rollingValueHasher{
 		bw:      w,
+		bw2:     w2,
 		bz:      buzhash.NewBuzHash(window),
 		pattern: pattern,
 		window:  window,
@@ -129,7 +136,7 @@ func newRollingValueHasher(nbf *NomsBinFormat, salt byte) *rollingValueHasher {
 }
 
 func (rv *rollingValueHasher) HashByte(b byte) bool {
-	return rv.hashByte(b, rv.bw.offset)
+	return rv.hashByte(b, rv.bw.offset+rv.bw2.offset)
 }
 
 func (rv *rollingValueHasher) hashByte(b byte, offset uint32) bool {
@@ -178,6 +185,7 @@ func (rv *rollingValueHasher) Reset() {
 	rv.crossedBoundary = false
 	rv.bz = buzhash.NewBuzHash(rv.window)
 	rv.bw.reset()
+	rv.bw2.reset()
 	rv.sl.Reset()
 }
 
@@ -193,7 +201,24 @@ func (rv *rollingValueHasher) HashValue(v Value) error {
 	return nil
 }
 
-func (rv *rollingValueHasher) hashBytes(buff []byte) {
-	rv.bw.writeRaw(buff)
-	rv.sl.Update(rv.bw.data())
+//func (rv *rollingValueHasher) hashBytes(buff []byte) {
+//	rv.bw.writeRaw(buff)
+//	rv.sl.Update(rv.bw.data())
+//}
+
+func (rv *rollingValueHasher) hashMetaTuple(tup metaTuple) {
+	if KeyHashOnly {
+		// hash the key part
+		start := tup.offsets[metaTuplePartKey]
+		end := tup.offsets[metaTuplePartNumLeaves]
+		rv.bw.writeRaw(tup.buff[start:end])
+		rv.sl.Update(rv.bw.data())
+
+		// use the rest for offset
+		rv.bw2.writeRaw(tup.buff[:start]) // metaTuplePartRef
+		rv.bw2.writeRaw(tup.buff[end:])   // metaTuplePartNumLeaves
+	} else {
+		rv.bw.writeRaw(tup.buff)
+		rv.sl.Update(rv.bw.data())
+	}
 }

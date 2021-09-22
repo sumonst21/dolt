@@ -560,7 +560,7 @@ func (ms metaSequence) getChildren(ctx context.Context, start, end uint64) ([]se
 }
 
 func metaHashValueBytes(item sequenceItem, rv *rollingValueHasher) error {
-	rv.hashBytes(item.(metaTuple).buff)
+	rv.hashMetaTuple(item.(metaTuple))
 	return nil
 }
 

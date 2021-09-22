@@ -35,7 +35,6 @@ const (
 
 var NoSloppy = false
 
-
 // TODO: Make this configurable
 var maxOffset = int(1<<maxOffsetPOT - 1)
 

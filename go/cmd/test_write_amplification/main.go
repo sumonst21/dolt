@@ -33,6 +33,7 @@ var Perc = flag.Float64("perc", 0.01, "percentage of keys to measure write ampli
 var Rewrite = flag.Bool("rewrite", false, "if true, rewrite the map and run the test on the rewritten map")
 var Smooth = flag.Bool("smooth", false, "if true, rewrites the map with smoothed pattern matching ")
 var NoSloppy = flag.Bool("nosloppy", false, "if true, turns sloppy off")
+var KeyHash = flag.Bool("keyhash", false, "if true, only hashed keys in rolling value hasher")
 var Hist = flag.Bool("hist", false, "if true, plot chunk size histograms")
 
 func GetTableNames(ctx context.Context, dir, branch string) (*doltdb.DoltDB, *doltdb.RootValue, []string) {
@@ -88,6 +89,10 @@ func main() {
 
 	if *NoSloppy {
 		sloppy.NoSloppy = true
+	}
+
+	if *KeyHash {
+		types.KeyHashOnly = true
 	}
 
 	db, rv, tablenames := GetTableNames(ctx, *Dir, *Branch)

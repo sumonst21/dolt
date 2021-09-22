@@ -32,6 +32,8 @@ import (
 	"github.com/dolthub/dolt/go/store/hash"
 )
 
+var KeyHashOnly = false
+
 type ValueInRange func(Value) (bool, error)
 
 var ErrKeysNotOrdered = errors.New("streaming map keys not ordered")
@@ -46,20 +48,37 @@ func newMap(seq orderedSequence) Map {
 	return Map{seq}
 }
 
-func mapHashValueBytes(item sequenceItem, rv *rollingValueHasher) error {
+func mapHashValueBytes(item sequenceItem, rv *rollingValueHasher) (err error) {
 	entry := item.(mapEntry)
-	err := hashValueBytes(entry.key, rv)
 
-	if err != nil {
-		return err
+	if KeyHashOnly {
+		// first write the value to |rv.bw2| to compute its size
+		err = entry.value.(Value).writeTo(&rv.bw2, rv.nbf)
+		if err != nil {
+			return err
+		}
+
+		// then hash the key normally
+		err = rv.HashValue(entry.key.(Value))
+		if err != nil {
+			return err
+		}
+
+	} else {
+		err = hashValueBytes(entry.key, rv)
+		if err != nil {
+			return err
+		}
+
+		err = hashValueBytes(entry.value, rv)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = hashValueBytes(entry.value, rv)
-
-	if err != nil {
-		return err
-	}
-
+	// the result is a rolling value hash dependent only on the data
+	// from the key, but "smoothed" based on the size of both key & val.
+	// key goes through sloppy to estimate compression, value does not
 	return nil
 }
 
