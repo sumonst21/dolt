@@ -33,6 +33,9 @@ const (
 	shift        = uint32(20)
 )
 
+var NoSloppy = false
+
+
 // TODO: Make this configurable
 var maxOffset = int(1<<maxOffsetPOT - 1)
 
@@ -107,6 +110,13 @@ func New(f func(b byte) bool) *Sloppy {
 func (sl *Sloppy) Update(src []byte) {
 	// Only consume up to the point that a "look-ahead" can include 4 bytes.
 	for ; sl.idx < len(src)-3; sl.idx++ {
+
+		if NoSloppy {
+			// copy |src| to input
+			_ = sl.enc.emitLiteral(src[sl.idx])
+			continue
+		}
+
 		nextHash := fbhash(load32(src, sl.idx))
 
 		if sl.matching && (sl.matchLength > maxLength || src[sl.idx] != src[sl.matchOffset+sl.matchLength]) {

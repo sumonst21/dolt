@@ -21,6 +21,7 @@ import (
 	"github.com/dolthub/dolt/go/libraries/doltcore/ref"
 	"github.com/dolthub/dolt/go/libraries/utils/filesys"
 	"github.com/dolthub/dolt/go/store/hash"
+	"github.com/dolthub/dolt/go/store/sloppy"
 	"github.com/dolthub/dolt/go/store/types"
 )
 
@@ -31,6 +32,7 @@ var Seed = flag.Int("seed", 1, "seed to use for rng key selector")
 var Perc = flag.Float64("perc", 0.01, "percentage of keys to measure write amplification for deleting")
 var Rewrite = flag.Bool("rewrite", false, "if true, rewrite the map and run the test on the rewritten map")
 var Smooth = flag.Bool("smooth", false, "if true, rewrites the map with smoothed pattern matching ")
+var NoSloppy = flag.Bool("nosloppy", false, "if true, turns sloppy off")
 var Hist = flag.Bool("hist", false, "if true, plot chunk size histograms")
 
 func GetTableNames(ctx context.Context, dir, branch string) (*doltdb.DoltDB, *doltdb.RootValue, []string) {
@@ -82,6 +84,10 @@ func main() {
 		if *Smooth {
 			types.TestSmooth = true
 		}
+	}
+
+	if *NoSloppy {
+		sloppy.NoSloppy = true
 	}
 
 	db, rv, tablenames := GetTableNames(ctx, *Dir, *Branch)
