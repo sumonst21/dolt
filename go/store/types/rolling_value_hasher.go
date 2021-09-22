@@ -56,6 +56,16 @@ var smoothRanges = []signatureRange{
 	// max = 16384
 }
 
+var keysHashSmoothRanges = []signatureRange{
+	// min = 512
+	{1024, 1<<16 - 1},
+	{2048, 1<<13 - 1},
+	{4096, 1<<10 - 1},
+	{8192, 1<<7 - 1},
+	{16384, 1<<4 - 1},
+	// max = 16384
+}
+
 var TestRewrite bool = false
 var TestSmooth bool = false
 
@@ -99,6 +109,7 @@ type rollingValueHasher struct {
 	crossedBoundary bool
 	pattern, window uint32
 	salt            byte
+	smooth          []signatureRange
 	sl              *sloppy.Sloppy
 	nbf             *NomsBinFormat
 }
@@ -125,7 +136,12 @@ func newRollingValueHasher(nbf *NomsBinFormat, salt byte) *rollingValueHasher {
 		pattern: pattern,
 		window:  window,
 		salt:    salt,
+		smooth:  smoothRanges,
 		nbf:     nbf,
+	}
+
+	if KeyHashOnly {
+		rv.smooth = keysHashSmoothRanges
 	}
 
 	rv.sl = sloppy.New(rv.HashByte)
@@ -146,7 +162,7 @@ func (rv *rollingValueHasher) hashByte(b byte, offset uint32) bool {
 			if TestSmooth {
 				s32 := rv.bz.Sum32()
 				if offset > smoothMinChunkSize {
-					for _, r := range smoothRanges {
+					for _, r := range rv.smooth {
 						rangeEnd, pattern := r[0], r[1]
 						if offset < rangeEnd {
 							rv.crossedBoundary = s32&pattern == pattern
