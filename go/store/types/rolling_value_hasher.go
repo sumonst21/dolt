@@ -104,12 +104,10 @@ type rollingValueHasher struct {
 }
 
 func hashValueBytes(item sequenceItem, rv *rollingValueHasher) error {
-	panic("assert hashValueBytes unused")
 	return rv.HashValue(item.(Value))
 }
 
 func hashValueByte(item sequenceItem, rv *rollingValueHasher) error {
-	panic("assert hashValueByte unused")
 	rv.HashByte(item.(byte))
 
 	return nil
