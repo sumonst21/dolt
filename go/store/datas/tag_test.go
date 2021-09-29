@@ -50,6 +50,7 @@ func TestNewTag(t *testing.T) {
 		types.EmptyStructType,
 		mustType(types.MakeSetType(mustType(types.MakeUnionType()))),
 		mustType(types.MakeListType(mustType(types.MakeUnionType()))),
+		mustType(types.TypeOf(types.EmptyTuple(types.Format_7_18))),
 		types.PrimitiveTypeMap[types.FloatKind],
 	)
 	require.NoError(t, err)

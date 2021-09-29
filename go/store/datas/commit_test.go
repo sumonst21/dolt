@@ -127,6 +127,7 @@ func TestNewCommit(t *testing.T) {
 		types.EmptyStructType,
 		mustType(types.MakeSetType(mustType(types.MakeUnionType()))),
 		mustType(types.MakeListType(mustType(types.MakeUnionType()))),
+		mustType(types.TypeOf(types.EmptyTuple(types.Format_7_18))),
 		types.PrimitiveTypeMap[types.FloatKind],
 	)
 	assert.NoError(err)
@@ -142,6 +143,7 @@ func TestNewCommit(t *testing.T) {
                 meta: Struct {},
                 parents: Set<Ref<Cycle<Commit>>>,
                 parents_list: List<Ref<Cycle<Commit>>>,
+                parents_skip_list: Tuple,
                 value: Float,
         }`)
 	assertTypeEquals(et2, at2)
@@ -156,6 +158,7 @@ func TestNewCommit(t *testing.T) {
                 meta: Struct {},
                 parents: Set<Ref<Cycle<Commit>>>,
                 parents_list: List<Ref<Cycle<Commit>>>,
+                parents_skip_list: Tuple,
                 value: Float | String,
         }`)
 	assertTypeEquals(et3, at3)
@@ -180,6 +183,7 @@ func TestNewCommit(t *testing.T) {
         	},
                 parents: Set<Ref<Cycle<Commit>>>,
                 parents_list: List<Ref<Cycle<Commit>>>,
+                parents_skip_list: Tuple,
                 value: Float | String,
         }`)
 	assertTypeEquals(et4, at4)
@@ -200,6 +204,7 @@ func TestNewCommit(t *testing.T) {
                 meta: Struct {},
                 parents: Set<Ref<Cycle<Commit>>>,
                 parents_list: List<Ref<Cycle<Commit>>>,
+                parents_skip_list: Tuple,
                 value: Float | String,
         }`)
 	assertTypeEquals(et5, at5)
