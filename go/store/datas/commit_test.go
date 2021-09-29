@@ -139,6 +139,9 @@ func TestNewCommit(t *testing.T) {
 	assert.NoError(err)
 	assertTypeEquals(et, at)
 
+	_, err = db.WriteValue(context.Background(), commit)
+	assert.NoError(err)
+
 	// Committing another Float
 	parents = mustList(types.NewList(context.Background(), db, mustRef(types.NewRef(commit, types.Format_7_18))))
 	parentsSkipList = mustTuple(getParentsSkipList(context.Background(), db, parents))
@@ -154,6 +157,9 @@ func TestNewCommit(t *testing.T) {
                 value: Float,
         }`)
 	assertTypeEquals(et2, at2)
+
+	_, err = db.WriteValue(context.Background(), commit2)
+	assert.NoError(err)
 
 	// Now commit a String
 	parents = mustList(types.NewList(context.Background(), db, mustRef(types.NewRef(commit2, types.Format_7_18))))
@@ -196,6 +202,9 @@ func TestNewCommit(t *testing.T) {
                 value: Float | String,
         }`)
 	assertTypeEquals(et4, at4)
+
+	_, err = db.WriteValue(context.Background(), commit3)
+	assert.NoError(err)
 
 	// Merge-commit with different parent types
 	parents = mustList(types.NewList(context.Background(), db,
@@ -455,6 +464,8 @@ func TestNewCommitRegressionTest(t *testing.T) {
 	cx, err := newCommit(context.Background(), types.Bool(true), parents, parentsSkipList, types.EmptyStruct(types.Format_7_18))
 	assert.NoError(t, err)
 	value := types.String("two")
+	_, err = db.WriteValue(context.Background(), c1)
+	assert.NoError(t, err)
 	parents, err = types.NewList(context.Background(), db, mustRef(types.NewRef(c1, types.Format_7_18)))
 	assert.NoError(t, err)
 	parentsSkipList = mustTuple(getParentsSkipList(context.Background(), db, parents))

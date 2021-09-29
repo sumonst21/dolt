@@ -349,7 +349,7 @@ func newTuple(nbf *NomsBinFormat, w binaryNomsWriter, values ...Value) (Tuple, e
 	numVals := len(values)
 	w.writeCount(uint64(numVals))
 	for i := 0; i < numVals; i++ {
-		if vrw == nil {
+		if vrw == nil && values[i] != nil {
 			vrw = values[i].(valueReadWriter).valueReadWriter()
 		}
 		err := values[i].writeTo(&w, nbf)

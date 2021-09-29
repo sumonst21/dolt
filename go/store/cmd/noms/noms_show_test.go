@@ -46,9 +46,9 @@ type nomsShowTestSuite struct {
 const (
 	res1 = "Commit{meta Struct,parents Set,parents_list List,parents_skip_list Union,value Ref} - struct Commit {\n  meta: struct {},\n  parents: set {},\n  parents_list: [],\n  parents_skip_list: (),\n  value: #nl181uu1ioc2j6t7mt9paidjlhlcjtgj,\n}"
 	res2 = "String - \"test string\""
-	res3 = "Commit{meta Struct,parents Set,parents_list List,parents_skip_list Union,value Ref} - struct Commit {\n  meta: struct {},\n  parents: set {\n    #nbd25rh0hqop4alrckbvakgm7snnfpcu,\n  },\n  parents_list: [\n    #nbd25rh0hqop4alrckbvakgm7snnfpcu,\n  ],\n  parents_skip_list: (),\n  value: #82adk7hfcudg8fktittm672to66t6qeu,\n}"
+	res3 = "Commit{meta Struct,parents Set,parents_list List,parents_skip_list Union,value Ref} - struct Commit {\n  meta: struct {},\n  parents: set {\n    #nbd25rh0hqop4alrckbvakgm7snnfpcu,\n  },\n  parents_list: [\n    #nbd25rh0hqop4alrckbvakgm7snnfpcu,\n  ],\n  parents_skip_list: ((#nbd25rh0hqop4alrckbvakgm7snnfpcu)),\n  value: #82adk7hfcudg8fktittm672to66t6qeu,\n}"
 	res4 = "List<Union<Float,String>> - [\n  \"elem1\",\n  2,\n  \"elem3\",\n]"
-	res5 = "Commit{meta Struct,parents Set,parents_list List,parents_skip_list Union,value Ref} - struct Commit {\n  meta: struct {},\n  parents: set {\n    #kqf9vsd3qd52decpt8min7fb7kpiepah,\n  },\n  parents_list: [\n    #kqf9vsd3qd52decpt8min7fb7kpiepah,\n  ],\n  parents_skip_list: (),\n  value: #5cgfu2vk4nc21m1vjkjjpd2kvcm2df7q,\n}"
+	res5 = "Commit{meta Struct,parents Set,parents_list List,parents_skip_list Union,value Ref} - struct Commit {\n  meta: struct {},\n  parents: set {\n    #sbum3sj74e3tmh0jujucq7dan8o7mto2,\n  },\n  parents_list: [\n    #sbum3sj74e3tmh0jujucq7dan8o7mto2,\n  ],\n  parents_skip_list: ((#sbum3sj74e3tmh0jujucq7dan8o7mto2,null_value,null_value,null_value)),\n  value: #nl181uu1ioc2j6t7mt9paidjlhlcjtgj,\n}"
 )
 
 func (s *nomsShowTestSuite) spec(str string) spec.Spec {
