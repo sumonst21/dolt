@@ -38,7 +38,8 @@ func TestNewTag(t *testing.T) {
 	defer db.Close()
 
 	parents := mustList(types.NewList(context.Background(), db))
-	commit, err := NewCommit(context.Background(), types.Float(1), parents, types.EmptyStruct(types.Format_7_18))
+	parentsSkipList := mustTuple(getParentsSkipList(context.Background(), db, parents))
+	commit, err := newCommit(context.Background(), types.Float(1), parents, parentsSkipList, types.EmptyStruct(types.Format_7_18))
 	require.NoError(t, err)
 
 	cmRef, err := types.NewRef(commit, types.Format_7_18)
