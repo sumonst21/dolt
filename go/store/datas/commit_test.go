@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dolthub/dolt/go/store/chunks"
 	"github.com/dolthub/dolt/go/store/d"
@@ -319,17 +320,17 @@ func assertCommonAncestor(t *testing.T, expected, a, b types.Struct, ldb, rdb Da
 	}
 }
 
+// Add a commit and return it
+func addCommit(t *testing.T, db Database, datasetID string, val string, parents ...types.Struct) types.Struct {
+	ds, err := db.GetDataset(context.Background(), datasetID)
+	assert.NoError(t, err)
+	ds, err = db.Commit(context.Background(), ds, types.String(val), CommitOptions{ParentsList: mustList(toRefList(db, parents...))})
+	assert.NoError(t, err)
+	return mustHead(ds)
+}
+
 func TestFindCommonAncestor(t *testing.T) {
 	assert := assert.New(t)
-
-	// Add a commit and return it
-	addCommit := func(db Database, datasetID string, val string, parents ...types.Struct) types.Struct {
-		ds, err := db.GetDataset(context.Background(), datasetID)
-		assert.NoError(err)
-		ds, err = db.Commit(context.Background(), ds, types.String(val), CommitOptions{ParentsList: mustList(toRefList(db, parents...))})
-		assert.NoError(err)
-		return mustHead(ds)
-	}
 
 	storage := &chunks.TestStorage{}
 	db := NewDatabase(storage.NewView())
@@ -350,19 +351,19 @@ func TestFindCommonAncestor(t *testing.T) {
 	// ds-d: d1<-d2
 	//
 	a, b, c, d := "ds-a", "ds-b", "ds-c", "ds-d"
-	a1 := addCommit(db, a, "a1")
-	d1 := addCommit(db, d, "d1")
-	a2 := addCommit(db, a, "a2", a1)
-	c2 := addCommit(db, c, "c2", a1)
-	d2 := addCommit(db, d, "d2", d1)
-	a3 := addCommit(db, a, "a3", a2)
-	b3 := addCommit(db, b, "b3", a2)
-	c3 := addCommit(db, c, "c3", c2, d2)
-	a4 := addCommit(db, a, "a4", a3)
-	b4 := addCommit(db, b, "b4", b3)
-	a5 := addCommit(db, a, "a5", a4)
-	b5 := addCommit(db, b, "b5", b4, a3)
-	a6 := addCommit(db, a, "a6", a5, b5)
+	a1 := addCommit(t, db, a, "a1")
+	d1 := addCommit(t, db, d, "d1")
+	a2 := addCommit(t, db, a, "a2", a1)
+	c2 := addCommit(t, db, c, "c2", a1)
+	d2 := addCommit(t, db, d, "d2", d1)
+	a3 := addCommit(t, db, a, "a3", a2)
+	b3 := addCommit(t, db, b, "b3", a2)
+	c3 := addCommit(t, db, c, "c3", c2, d2)
+	a4 := addCommit(t, db, a, "a4", a3)
+	b4 := addCommit(t, db, b, "b4", b3)
+	a5 := addCommit(t, db, a, "a5", a4)
+	b5 := addCommit(t, db, b, "b5", b4, a3)
+	a6 := addCommit(t, db, a, "a6", a5, b5)
 
 	assertCommonAncestor(t, a1, a1, a1, db, db) // All self
 	assertCommonAncestor(t, a1, a1, a2, db, db) // One side self
@@ -402,43 +403,43 @@ func TestFindCommonAncestor(t *testing.T) {
 	// Rerun the tests when using two difference Databases for left and
 	// right commits. Both databases have all the previous commits.
 	a, b, c, d = "ds-a", "ds-b", "ds-c", "ds-d"
-	a1 = addCommit(db, a, "a1")
-	d1 = addCommit(db, d, "d1")
-	a2 = addCommit(db, a, "a2", a1)
-	c2 = addCommit(db, c, "c2", a1)
-	d2 = addCommit(db, d, "d2", d1)
-	a3 = addCommit(db, a, "a3", a2)
-	b3 = addCommit(db, b, "b3", a2)
-	c3 = addCommit(db, c, "c3", c2, d2)
-	a4 = addCommit(db, a, "a4", a3)
-	b4 = addCommit(db, b, "b4", b3)
-	a5 = addCommit(db, a, "a5", a4)
-	b5 = addCommit(db, b, "b5", b4, a3)
-	a6 = addCommit(db, a, "a6", a5, b5)
+	a1 = addCommit(t, db, a, "a1")
+	d1 = addCommit(t, db, d, "d1")
+	a2 = addCommit(t, db, a, "a2", a1)
+	c2 = addCommit(t, db, c, "c2", a1)
+	d2 = addCommit(t, db, d, "d2", d1)
+	a3 = addCommit(t, db, a, "a3", a2)
+	b3 = addCommit(t, db, b, "b3", a2)
+	c3 = addCommit(t, db, c, "c3", c2, d2)
+	a4 = addCommit(t, db, a, "a4", a3)
+	b4 = addCommit(t, db, b, "b4", b3)
+	a5 = addCommit(t, db, a, "a5", a4)
+	b5 = addCommit(t, db, b, "b5", b4, a3)
+	a6 = addCommit(t, db, a, "a6", a5, b5)
 
-	addCommit(rdb, a, "a1")
-	addCommit(rdb, d, "d1")
-	addCommit(rdb, a, "a2", a1)
-	addCommit(rdb, c, "c2", a1)
-	addCommit(rdb, d, "d2", d1)
-	addCommit(rdb, a, "a3", a2)
-	addCommit(rdb, b, "b3", a2)
-	addCommit(rdb, c, "c3", c2, d2)
-	addCommit(rdb, a, "a4", a3)
-	addCommit(rdb, b, "b4", b3)
-	addCommit(rdb, a, "a5", a4)
-	addCommit(rdb, b, "b5", b4, a3)
-	addCommit(rdb, a, "a6", a5, b5)
+	addCommit(t, rdb, a, "a1")
+	addCommit(t, rdb, d, "d1")
+	addCommit(t, rdb, a, "a2", a1)
+	addCommit(t, rdb, c, "c2", a1)
+	addCommit(t, rdb, d, "d2", d1)
+	addCommit(t, rdb, a, "a3", a2)
+	addCommit(t, rdb, b, "b3", a2)
+	addCommit(t, rdb, c, "c3", c2, d2)
+	addCommit(t, rdb, a, "a4", a3)
+	addCommit(t, rdb, b, "b4", b3)
+	addCommit(t, rdb, a, "a5", a4)
+	addCommit(t, rdb, b, "b5", b4, a3)
+	addCommit(t, rdb, a, "a6", a5, b5)
 
 	// Additionally, |db| has a6<-a7<-a8<-a9.
 	// |rdb| has a6<-ra7<-ra8<-ra9.
-	a7 := addCommit(db, a, "a7", a6)
-	a8 := addCommit(db, a, "a8", a7)
-	a9 := addCommit(db, a, "a9", a8)
+	a7 := addCommit(t, db, a, "a7", a6)
+	a8 := addCommit(t, db, a, "a8", a7)
+	a9 := addCommit(t, db, a, "a9", a8)
 
-	ra7 := addCommit(rdb, a, "ra7", a6)
-	ra8 := addCommit(rdb, a, "ra8", ra7)
-	ra9 := addCommit(rdb, a, "ra9", ra8)
+	ra7 := addCommit(t, rdb, a, "ra7", a6)
+	ra8 := addCommit(t, rdb, a, "ra8", ra7)
+	ra9 := addCommit(t, rdb, a, "ra9", ra8)
 
 	assertCommonAncestor(t, a1, a1, a1, db, rdb) // All self
 	assertCommonAncestor(t, a1, a1, a2, db, rdb) // One side self
@@ -486,4 +487,102 @@ func TestPersistedCommitConsts(t *testing.T) {
 	assert.Equal(t, "value", ValueField)
 	assert.Equal(t, "meta", CommitMetaField)
 	assert.Equal(t, "Commit", CommitName)
+}
+
+func TestCommitParentsSkipList(t *testing.T) {
+	storage := &chunks.TestStorage{}
+	db := NewDatabase(storage.NewView())
+	defer db.Close()
+
+	height := 1
+	oldHeightFunc := SkipListNodeHeightForParents
+	defer func() {
+		SkipListNodeHeightForParents = oldHeightFunc
+	}()
+	SkipListNodeHeightForParents = func(ctx context.Context, parents types.List) (int, error) {
+		return height, nil
+	}
+
+	type node []*types.Struct
+	type expected []node
+
+	assertExpected := func(e expected) func(got ParentsSkipList, found bool, err error) {
+		return func(got ParentsSkipList, found bool, err error) {
+			require.NoError(t, err)
+			require.True(t, found)
+			if !assert.Equal(t, uint64(len(e)), got.Len()) {
+				return
+			}
+			for i := uint64(0); i < got.Len(); i++ {
+				gotn := e[int(i)]
+				n, err := got.Get(i)
+				require.NoError(t, err)
+				if !assert.Equal(t, uint64(len(gotn)), n.Height()) {
+					return
+				}
+				for j := 0; j < len(gotn); j++ {
+					r, found, err := n.GetRef(uint64(j))
+					require.NoError(t, err)
+					if gotn[j] != nil {
+						require.True(t, found)
+						assert.Equal(t, mustRef(types.NewRef(*gotn[j], types.Format_7_18)).TargetHash(), r.TargetHash())
+					} else {
+						assert.False(t, found)
+					}
+				}
+			}
+		}
+	}
+
+	a, b, c, d := "ds-a", "ds-b", "ds-c", "ds-d"
+	fmt.Printf("%s %s %s %s\n", a, b, c, d)
+	a1 := addCommit(t, db, a, "a1")
+	assertExpected(expected{})(LoadParentsSkipListFromCommit(a1))
+
+	a2 := addCommit(t, db, a, "a2", a1)
+	assertExpected(expected{
+		node{&a1},
+	})(LoadParentsSkipListFromCommit(a2))
+
+	height = 2
+	a3 := addCommit(t, db, a, "a3", a2)
+	assertExpected(expected{
+		node{&a2, nil},
+	})(LoadParentsSkipListFromCommit(a3))
+
+	height = 1
+	a4 := addCommit(t, db, a, "a4", a3)
+	assertExpected(expected{
+		node{&a3},
+	})(LoadParentsSkipListFromCommit(a4))
+
+	height = 4
+	a5 := addCommit(t, db, a, "a5", a4)
+	assertExpected(expected{
+		node{&a4, &a3, nil, nil},
+	})(LoadParentsSkipListFromCommit(a5))
+
+	height = 2
+	a6 := addCommit(t, db, a, "a6", a5)
+	assertExpected(expected{
+		node{&a5, &a5},
+	})(LoadParentsSkipListFromCommit(a6))
+
+	height = 1
+	a7 := addCommit(t, db, a, "a7", a6)
+	assertExpected(expected{
+		node{&a6},
+	})(LoadParentsSkipListFromCommit(a7))
+
+	height = 1
+	a8 := addCommit(t, db, a, "a8", a7)
+	assertExpected(expected{
+		node{&a7},
+	})(LoadParentsSkipListFromCommit(a8))
+
+	height = 4
+	a9 := addCommit(t, db, a, "a9", a8)
+	assertExpected(expected{
+		node{&a8, &a6, &a5, &a5},
+	})(LoadParentsSkipListFromCommit(a9))
 }

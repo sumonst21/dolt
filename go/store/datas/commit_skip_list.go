@@ -94,7 +94,7 @@ func LoadParentsSkipListFromCommit(commit types.Struct) (ParentsSkipList, bool, 
 	return ParentsSkipList{tuple}, true, nil
 }
 
-func SkipListNodeHeightForParents(ctx context.Context, parents types.List) (int, error) {
+var SkipListNodeHeightForParents = func(ctx context.Context, parents types.List) (int, error) {
 	h := sha512.New()
 	err := parents.IterAll(ctx, func(v types.Value, i uint64) error {
 		r, ok := v.(types.Ref)
@@ -162,7 +162,7 @@ func getParentSkipListNodeOfHeight(ctx context.Context, vrw types.ValueReadWrite
 	}
 ENTRIES:
 	for i := 1; i < height; i++ {
-		for int(currNode.Height()) < i + 1 {
+		for int(currNode.Height()) < i+1 {
 			if currNode.Height() == 0 {
 				break ENTRIES
 			}
@@ -213,4 +213,3 @@ func getParentsSkipList(ctx context.Context, vrw types.ValueReadWriter, parents 
 	}
 	return types.NewTuple(vrw.Format(), entries...)
 }
-
