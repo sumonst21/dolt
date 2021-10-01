@@ -61,6 +61,7 @@ func init() {
 
 var ErrUploadFailed = errors.New("upload failed")
 var ErrInvalidDoltSpecPath = errors.New("invalid dolt spec path")
+var ErrUnableToCacheChunk = errors.New("unable to cache chunk")
 
 var globalHttpFetcher HTTPFetcher = &http.Client{}
 
@@ -613,8 +614,6 @@ func (dcs *DoltChunkStore) readChunksAndCache(ctx context.Context, hashes hash.H
 		return err
 	}
 
-	var wg sync.WaitGroup
-
 	// channel to receive chunks on
 	chunkChan := make(chan nbs.CompressedChunk, 128)
 
@@ -623,35 +622,37 @@ func (dcs *DoltChunkStore) readChunksAndCache(ctx context.Context, hashes hash.H
 		toSend[h] = struct{}{}
 	}
 
-	// start a go routine to receive the downloaded chunks on
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for chunk := range chunkChan {
-			dcs.cache.PutChunk(chunk)
+	eg, egCtx := errgroup.WithContext(ctx)
 
-			h := chunk.Hash()
-
-			if _, send := toSend[h]; send {
-				found(chunk)
+	// go routine to receive chunks
+	eg.Go(func() error {
+		for {
+			select {
+			case chunk, ok := <-chunkChan:
+				if !ok {
+					return nil
+				}
+				wasPut := dcs.cache.PutChunk(chunk)
+				if !wasPut {
+					return ErrUnableToCacheChunk
+				}
+				h := chunk.Hash()
+				if _, send := toSend[h]; send {
+					found(chunk)
+				}
+			case <-egCtx.Done():
+				return egCtx.Err()
 			}
 		}
-	}()
+	})
 
-	// download the chunks and close the channel after
-	func() {
+	// go routine to download and send chunks to channel
+	eg.Go(func() error {
 		defer close(chunkChan)
-		err = dcs.downloadChunks(ctx, dlLocs, chunkChan)
-	}()
+		return dcs.downloadChunks(egCtx, dlLocs, chunkChan)
+	})
 
-	// wait for all the results to finish processing
-	wg.Wait()
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return eg.Wait()
 }
 
 // Returns true iff the value at the address |h| is contained in the
