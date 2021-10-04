@@ -534,8 +534,7 @@ func TestCommitParentsSkipList(t *testing.T) {
 		}
 	}
 
-	a, b, c, d := "ds-a", "ds-b", "ds-c", "ds-d"
-	fmt.Printf("%s %s %s %s\n", a, b, c, d)
+	a, b, c, d, e := "ds-a", "ds-b", "ds-c", "ds-d", "ds-e"
 	a1 := addCommit(t, db, a, "a1")
 	assertExpected(expected{})(LoadParentsSkipListFromCommit(a1))
 
@@ -585,4 +584,34 @@ func TestCommitParentsSkipList(t *testing.T) {
 	assertExpected(expected{
 		node{&a8, &a6, &a5, &a5},
 	})(LoadParentsSkipListFromCommit(a9))
+
+	b1 := addCommit(t, db, b, "b1")
+	assertExpected(expected{})(LoadParentsSkipListFromCommit(b1))
+
+	height = 2
+	b2 := addCommit(t, db, b, "b2", b1)
+	assertExpected(expected{
+		node{&b1, nil},
+	})(LoadParentsSkipListFromCommit(b2))
+
+	height = 1
+	c1 := addCommit(t, db, c, "c1", b2, a9)
+	assertExpected(expected{
+		node{&b2},
+		node{&a9},
+	})(LoadParentsSkipListFromCommit(c1))
+
+	height = 2
+	d1 := addCommit(t, db, d, "d1", a9, b2)
+	assertExpected(expected{
+		node{&a9, &a9},
+		node{&b2, &b2},
+	})(LoadParentsSkipListFromCommit(d1))
+
+	height = 4
+	e1 := addCommit(t, db, e, "e1", d1, a6)
+	assertExpected(expected{
+		node{&d1, &d1, &a9, &a9},
+		node{&a6, &a6, &a5, &a5},
+	})(LoadParentsSkipListFromCommit(e1))
 }
