@@ -18,6 +18,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	dsqle "github.com/dolthub/dolt/go/libraries/doltcore/sqle"
+	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/dsess"
+	"github.com/dolthub/go-mysql-server/sql"
 	"io"
 	"os"
 	"strings"
@@ -474,6 +477,20 @@ func newImportDataMover(ctx context.Context, root *doltdb.RootValue, dEnv *env.D
 	bulkTeaf := editor.NewBulkImportTEAFactory(root.VRW().Format(), root.VRW(), dEnv.TempTableFilesDir())
 	opts := editor.Options{Deaf: bulkTeaf}
 
+	mrEnv, _ := env.DoltEnvAsMultiEnv(ctx, dEnv)
+	dbs, _ := CollectDBs(ctx, mrEnv)
+	pro := dsqle.NewDoltDatabaseProvider(mrEnv.Config(), mrEnv.FileSystem(), dsqleDBsAsSqlDBs(dbs)...)
+
+	nameToDB := make(map[string]dsqle.SqlDatabase)
+	var dbStates []dsess.InitialDbState
+	for _, db := range dbs {
+		nameToDB[db.Name()] = db
+
+		dbState, _ := dsqle.GetInitialDBState(ctx, db)
+		dbStates = append(dbStates, dbState)
+	}
+	doltSess, _ := dsess.NewDoltSession(sql.NewEmptyContext(), sql.NewBaseSession(), pro, mrEnv.Config(), dbStates...)
+
 	var wr table.TableWriteCloser
 	switch impOpts.operation {
 	case CreateOp:
@@ -485,7 +502,11 @@ func newImportDataMover(ctx context.Context, root *doltdb.RootValue, dEnv *env.D
 		if err != nil {
 			return nil, &mvdata.DataMoverCreationError{ErrType: mvdata.CreateWriterErr, Cause: err}
 		}
-		wr, err = impOpts.dest.NewCreatingWriter(ctx, impOpts, root, srcIsSorted, wrSch, statsCB, opts, writer)
+
+		wr, err = impOpts.dest.NewCreatingWriterWithProvider(ctx, impOpts, root, srcIsSorted, wrSch, statsCB, opts, writer, pro, doltSess)
+		if err != nil {
+			return nil, &mvdata.DataMoverCreationError{ErrType: mvdata.CreateWriterErr, Cause: err}
+		}
 	case ReplaceOp:
 		wr, err = impOpts.dest.NewReplacingWriter(ctx, impOpts, root, srcIsSorted, wrSch, statsCB, opts)
 	case UpdateOp:
@@ -612,3 +633,38 @@ func newDataMoverErrToVerr(mvOpts *importOptions, err *mvdata.DataMoverCreationE
 
 	panic("Unhandled Error type")
 }
+
+
+// CollectDBs takes a MultiRepoEnv and creates Database objects from each environment and returns a slice of these
+// objects.
+func CollectDBs(ctx context.Context, mrEnv *env.MultiRepoEnv) ([]dsqle.SqlDatabase, error) {
+	var dbs []dsqle.SqlDatabase
+	var db dsqle.SqlDatabase
+	err := mrEnv.Iter(func(name string, dEnv *env.DoltEnv) (stop bool, err error) {
+		db = newDatabase(name, dEnv)
+		dbs = append(dbs, db)
+		return false, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return dbs, nil
+}
+
+func newDatabase(name string, dEnv *env.DoltEnv) dsqle.Database {
+	opts := editor.Options{
+		Deaf: dEnv.DbEaFactory(),
+	}
+	return dsqle.NewDatabase(name, dEnv.DbData(), opts)
+}
+
+func dsqleDBsAsSqlDBs(dbs []dsqle.SqlDatabase) []sql.Database {
+	sqlDbs := make([]sql.Database, 0, len(dbs))
+	for _, db := range dbs {
+		sqlDbs = append(sqlDbs, db)
+	}
+	return sqlDbs
+}
+

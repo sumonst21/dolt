@@ -34,7 +34,7 @@ func AddDoltSystemVariables() {
 			Dynamic:           true,
 			SetVarHintApplies: false,
 			Type:              sql.NewSystemIntType(CurrentBatchModeKey, -9223372036854775808, 9223372036854775807, false),
-			Default:           int64(0),
+			Default:           int64(1),
 		},
 		{
 			Name:              DefaultBranchKey,
@@ -66,6 +66,14 @@ func AddDoltSystemVariables() {
 			Dynamic:           true,
 			SetVarHintApplies: false,
 			Type:              sql.NewSystemBoolType(SkipReplicationErrorsKey),
+			Default:           int8(0),
+		},
+		{
+			Name:              "dolt_import_engine",
+			Scope:             sql.SystemVariableScope_Global,
+			Dynamic:           true,
+			SetVarHintApplies: false,
+			Type:              sql.NewSystemBoolType("dolt_import_engine"),
 			Default:           int8(0),
 		},
 	})

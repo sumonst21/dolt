@@ -29,7 +29,7 @@ type statementScanner struct {
 	Delimiter          string
 }
 
-const maxStatementBufferBytes = 100 * 1024 * 1024
+const maxStatementBufferBytes = 100 * 1024 * 1024 * 1024 * 1024
 
 func NewSqlStatementScanner(input io.Reader) *statementScanner {
 	scanner := bufio.NewScanner(input)
