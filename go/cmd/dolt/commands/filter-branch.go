@@ -233,7 +233,7 @@ func processFilterQuery(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commi
 // The SQL engine returned has transactions disabled. This is to prevent transactions starts from overwriting the root
 // we set manually with the one at the working set of the HEAD being rebased.
 // Some functionality will not work on this kind of engine, e.g. many DOLT_ functions.
-func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) (*sql.Context, *sqlEngine, error) {
+func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) (*sql.Context, *SqlEngine, error) {
 	sess := dsess.DefaultSession().NewDoltSession(config.NewMapConfig(make(map[string]string)))
 
 	sqlCtx := sql.NewContext(ctx,
@@ -298,7 +298,7 @@ func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) 
 
 	sqlCtx.SetCurrentDatabase(dbName)
 
-	se := &sqlEngine{
+	se := &SqlEngine{
 		dbs:    map[string]dsqle.SqlDatabase{dbName: db},
 		engine: engine,
 	}

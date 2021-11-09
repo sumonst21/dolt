@@ -478,7 +478,7 @@ func newImportDataMover(ctx context.Context, root *doltdb.RootValue, dEnv *env.D
 	opts := editor.Options{Deaf: bulkTeaf}
 
 	mrEnv, _ := env.DoltEnvAsMultiEnv(ctx, dEnv)
-	dbs, _ := CollectDBs(ctx, mrEnv)
+	dbs, _ := commands.CollectDBs(ctx, mrEnv)
 	pro := dsqle.NewDoltDatabaseProvider(mrEnv.Config(), mrEnv.FileSystem(), dsqleDBsAsSqlDBs(dbs)...)
 
 	nameToDB := make(map[string]dsqle.SqlDatabase)
@@ -490,6 +490,8 @@ func newImportDataMover(ctx context.Context, root *doltdb.RootValue, dEnv *env.D
 		dbStates = append(dbStates, dbState)
 	}
 	doltSess, _ := dsess.NewDoltSession(sql.NewEmptyContext(), sql.NewBaseSession(), pro, mrEnv.Config(), dbStates...)
+
+	err = doltSess.SetSessionVariable(sql.NewContext(ctx), sql.AutoCommitSessionVar, true)
 
 	var wr table.TableWriteCloser
 	switch impOpts.operation {
@@ -632,32 +634,6 @@ func newDataMoverErrToVerr(mvOpts *importOptions, err *mvdata.DataMoverCreationE
 	}
 
 	panic("Unhandled Error type")
-}
-
-
-// CollectDBs takes a MultiRepoEnv and creates Database objects from each environment and returns a slice of these
-// objects.
-func CollectDBs(ctx context.Context, mrEnv *env.MultiRepoEnv) ([]dsqle.SqlDatabase, error) {
-	var dbs []dsqle.SqlDatabase
-	var db dsqle.SqlDatabase
-	err := mrEnv.Iter(func(name string, dEnv *env.DoltEnv) (stop bool, err error) {
-		db = newDatabase(name, dEnv)
-		dbs = append(dbs, db)
-		return false, nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return dbs, nil
-}
-
-func newDatabase(name string, dEnv *env.DoltEnv) dsqle.Database {
-	opts := editor.Options{
-		Deaf: dEnv.DbEaFactory(),
-	}
-	return dsqle.NewDatabase(name, dEnv.DbData(), opts)
 }
 
 func dsqleDBsAsSqlDBs(dbs []dsqle.SqlDatabase) []sql.Database {
