@@ -24,6 +24,7 @@ type SqlEngineMover struct {
  	db string
  	tableCreate bool // TODO: Get rid of this
  	tableName string
+ 	sqlCtx *sql.Context
 
 	statsCB noms.StatsCB
 	stats   types.AppliedEditStats
@@ -58,6 +59,18 @@ func NewSqlEngineMover(ctx context.Context, dEnv *env.DoltEnv, tableSch schema.S
 
 	se.SetBatchMode()
 
+	sqlCtx, err := se.NewContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Move this to factory
+	err = sqlCtx.Session.SetSessionVariable(sqlCtx, sql.AutoCommitSessionVar, false)
+	if err != nil {
+		return nil, errhand.VerboseErrorFromError(err)
+	}
+
+
 	sm := &SqlEngineMover{
 		se: se,
 		tableSch: tableSch,
@@ -65,11 +78,7 @@ func NewSqlEngineMover(ctx context.Context, dEnv *env.DoltEnv, tableSch schema.S
 		tableCreate: tableCreate,
 		tableName: tableName,
 		statsCB: statsCB,
-	}
-
-	sqlCtx, err := sm.se.NewContext(ctx)
-	if err != nil {
-		return nil, err
+		sqlCtx: sqlCtx,
 	}
 
 	err = sm.createTable(sqlCtx)
@@ -85,26 +94,8 @@ func (s *SqlEngineMover) GetSchema() schema.Schema {
 }
 
 func (s *SqlEngineMover) WriteRow(ctx context.Context, r row.Row) error {
-	sqlCtx, err := s.se.NewContext(ctx)
-	if err != nil {
-		return nil
-	}
-
-	// TODO: Move this to factory
-	err = sqlCtx.Session.SetSessionVariable(sqlCtx, sql.AutoCommitSessionVar, false)
-	if err != nil {
-		return errhand.VerboseErrorFromError(err)
-	}
-
-	//if s.tableCreate {
-	//	err = s.createTable(sqlCtx)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	s.tableCreate = false
-	//}
-
+	sqlCtx := s.sqlCtx
+	
 	doltSchema, err := sqlutil.FromDoltSchema(s.tableName, s.tableSch)
 	if err != nil {
 		return err
