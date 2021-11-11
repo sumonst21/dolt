@@ -1,4 +1,4 @@
-package commands
+package cliengine
 
 import (
 	"context"
@@ -26,11 +26,11 @@ import (
 
 // SqlEngine is an abstraction used by the CLI that writes the results of sql queries to disk.
 type SqlEngine struct {
-	dbs            map[string]dsqle.SqlDatabase
+	Dbs            map[string]dsqle.SqlDatabase
 	sess           *dsess.DoltSession
 	contextFactory func(ctx context.Context) (*sql.Context, error)
-	engine         *sqle.Engine
-	resultFormat   resultFormat
+	Engine         *sqle.Engine
+	ResultFormat   ResultFormat
 }
 
 var ErrDBNotFoundKind = errors.NewKind("database '%s' not found")
@@ -40,7 +40,7 @@ func NewSqlEngine(
 	ctx context.Context,
 	config config.ReadWriteConfig,
 	fs filesys.Filesys,
-	format resultFormat,
+	format ResultFormat,
 	initialDb string,
 	dbs ...dsqle.SqlDatabase,
 ) (*SqlEngine, error) {
@@ -49,7 +49,7 @@ func NewSqlEngine(
 	parallelism := runtime.GOMAXPROCS(0)
 
 	infoDB := information_schema.NewInformationSchemaDatabase()
-	all := append(dsqleDBsAsSqlDBs(dbs), infoDB)
+	all := append(DsqleDBsAsSqlDBs(dbs), infoDB)
 
 	pro := dsqle.NewDoltDatabaseProvider(config, fs, all...)
 
@@ -93,15 +93,15 @@ func NewSqlEngine(
 	}
 
 	return &SqlEngine{
-		dbs:            nameToDB,
+		Dbs:            nameToDB,
 		sess:           sess,
-		contextFactory: newSqlContext(sess, initialDb),
-		engine:         engine,
-		resultFormat:   format,
+		contextFactory: NewSqlContext(sess, initialDb),
+		Engine:         engine,
+		ResultFormat:   format,
 	}, nil
 }
 
-func newSqlContext(sess *dsess.DoltSession, initialDb string) func(ctx context.Context) (*sql.Context, error) {
+func NewSqlContext(sess *dsess.DoltSession, initialDb string) func(ctx context.Context) (*sql.Context, error) {
 	return func(ctx context.Context) (*sql.Context, error) {
 		sqlCtx := sql.NewContext(ctx,
 			sql.WithSession(sess),
@@ -119,7 +119,7 @@ func newSqlContext(sess *dsess.DoltSession, initialDb string) func(ctx context.C
 	}
 }
 
-func dsqleDBsAsSqlDBs(dbs []dsqle.SqlDatabase) []sql.Database {
+func DsqleDBsAsSqlDBs(dbs []dsqle.SqlDatabase) []sql.Database {
 	sqlDbs := make([]sql.Database, 0, len(dbs))
 	for _, db := range dbs {
 		sqlDbs = append(sqlDbs, db)
@@ -128,7 +128,7 @@ func dsqleDBsAsSqlDBs(dbs []dsqle.SqlDatabase) []sql.Database {
 }
 
 func (se *SqlEngine) iterDBs(cb func(name string, db dsqle.SqlDatabase) (stop bool, err error)) error {
-	for name, db := range se.dbs {
+	for name, db := range se.Dbs {
 		stop, err := cb(name, db)
 
 		if err != nil {
@@ -143,9 +143,9 @@ func (se *SqlEngine) iterDBs(cb func(name string, db dsqle.SqlDatabase) (stop bo
 	return nil
 }
 
-func (se *SqlEngine) getRoots(sqlCtx *sql.Context) (map[string]*doltdb.RootValue, error) {
+func (se *SqlEngine) GetRoots(sqlCtx *sql.Context) (map[string]*doltdb.RootValue, error) {
 	newRoots := make(map[string]*doltdb.RootValue)
-	for name, db := range se.dbs {
+	for name, db := range se.Dbs {
 		var err error
 		newRoots[name], err = db.GetRoot(sqlCtx)
 
@@ -157,18 +157,22 @@ func (se *SqlEngine) getRoots(sqlCtx *sql.Context) (map[string]*doltdb.RootValue
 	return newRoots, nil
 }
 
-func (se *SqlEngine) newContext(ctx context.Context) (*sql.Context, error) {
+func (se *SqlEngine) NewContext(ctx context.Context) (*sql.Context, error) {
 	return se.contextFactory(ctx)
 }
 
 // Execute a SQL statement and return values for printing.
-func (se *SqlEngine) query(ctx *sql.Context, query string) (sql.Schema, sql.RowIter, error) {
-	return se.engine.Query(ctx, query)
+func (se *SqlEngine) Query(ctx *sql.Context, query string) (sql.Schema, sql.RowIter, error) {
+	return se.Engine.Query(ctx, query)
 }
 
-func (se *SqlEngine) flushDbs(ctx *sql.Context) error {
+func (se *SqlEngine) GetEngine() *sqle.Engine {
+	return se.Engine
+}
+
+func (se *SqlEngine) FlushDbs(ctx *sql.Context) error {
 	return se.iterDBs(func(_ string, db dsqle.SqlDatabase) (bool, error) {
-		_, rowIter, err := se.engine.Query(ctx, "COMMIT;")
+		_, rowIter, err := se.Engine.Query(ctx, "COMMIT;")
 		if err != nil {
 			return false, err
 		}
@@ -187,7 +191,7 @@ func (se *SqlEngine) flushDbs(ctx *sql.Context) error {
 	})
 }
 
-func (se *SqlEngine) dbddl(ctx *sql.Context, dbddl *sqlparser.DBDDL, query string) (sql.Schema, sql.RowIter, error) {
+func (se *SqlEngine) Dbddl(ctx *sql.Context, dbddl *sqlparser.DBDDL, query string) (sql.Schema, sql.RowIter, error) {
 	action := strings.ToLower(dbddl.Action)
 	var rowIter sql.RowIter = nil
 	var err error = nil
@@ -203,7 +207,7 @@ func (se *SqlEngine) dbddl(ctx *sql.Context, dbddl *sqlparser.DBDDL, query strin
 		}
 	}
 
-	sch, rowIter, err := se.query(ctx, query)
+	sch, rowIter, err := se.Query(ctx, query)
 
 	if rowIter != nil {
 		err = rowIter.Close(ctx)
@@ -221,10 +225,10 @@ func (se *SqlEngine) dbddl(ctx *sql.Context, dbddl *sqlparser.DBDDL, query strin
 
 // Executes a SQL DDL statement (create, update, etc.). Updates the new root value in
 // the SqlEngine if necessary.
-func (se *SqlEngine) ddl(ctx *sql.Context, ddl *sqlparser.DDL, query string) (sql.Schema, sql.RowIter, error) {
+func (se *SqlEngine) Ddl(ctx *sql.Context, ddl *sqlparser.DDL, query string) (sql.Schema, sql.RowIter, error) {
 	switch ddl.Action {
 	case sqlparser.CreateStr, sqlparser.DropStr, sqlparser.AlterStr, sqlparser.RenameStr, sqlparser.TruncateStr:
-		_, ri, err := se.query(ctx, query)
+		_, ri, err := se.Query(ctx, query)
 		if err == nil {
 			for _, err = ri.Next(); err == nil; _, err = ri.Next() {
 			}
@@ -233,7 +237,7 @@ func (se *SqlEngine) ddl(ctx *sql.Context, ddl *sqlparser.DDL, query string) (sq
 			} else {
 				closeErr := ri.Close(ctx)
 				if closeErr != nil {
-					err = errhand.BuildDError("error while executing ddl").AddCause(err).AddCause(closeErr).Build()
+					err = errhand.BuildDError("error while executing Ddl").AddCause(err).AddCause(closeErr).Build()
 				}
 			}
 		}

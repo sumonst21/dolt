@@ -227,24 +227,30 @@ func MoveDataToRoot(ctx context.Context, mover *DataMover, mvOpts DataMoverOptio
 	}
 
 	if mvOpts.WritesToTable() {
-		wr := mover.Wr.(DataMoverCloser)
-		newRoot, err = wr.Flush(ctx)
-		if err != nil {
-			return nil, badCount, errhand.BuildDError("Failed to apply changes to the table.").AddCause(err).Build()
-		}
-
-		rootHash, err := root.HashOf()
-		if err != nil {
-			return nil, badCount, errhand.BuildDError("Failed to hash the working value.").AddCause(err).Build()
-		}
-
-		newRootHash, err := newRoot.HashOf()
-		if rootHash != newRootHash {
-			err = updateRoot(ctx, newRoot)
+		if m, ok := mover.Wr.(*SqlEngineMover); ok {
+			err =  m.Commit(ctx)
 			if err != nil {
-				return nil, badCount, errhand.BuildDError("Failed to update the working value.").AddCause(err).Build()
+				return nil, badCount, errhand.BuildDError("Failed to apply changes to the table.").AddCause(err).Build()
 			}
 		}
+		////wr := mover.Wr.(DataMoverCloser)
+		//newRoot, err = wr.Flush(ctx)
+		//if err != nil {
+		//	return nil, badCount, errhand.BuildDError("Failed to apply changes to the table.").AddCause(err).Build()
+		//}
+		//
+		//rootHash, err := root.HashOf()
+		//if err != nil {
+		//	return nil, badCount, errhand.BuildDError("Failed to hash the working value.").AddCause(err).Build()
+		//}
+		//
+		//newRootHash, err := newRoot.HashOf()
+		//if rootHash != newRootHash {
+		//	err = updateRoot(ctx, newRoot)
+		//	if err != nil {
+		//		return nil, badCount, errhand.BuildDError("Failed to update the working value.").AddCause(err).Build()
+		//	}
+		//}
 	}
 
 	return newRoot, badCount, nil

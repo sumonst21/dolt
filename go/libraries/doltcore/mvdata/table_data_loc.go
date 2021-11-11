@@ -19,12 +19,7 @@ import (
 	"errors"
 	dsqle "github.com/dolthub/dolt/go/libraries/doltcore/sqle"
 	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/dsess"
-	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/sqlutil"
-	"github.com/dolthub/dolt/go/libraries/utils/tracing"
-	sqle "github.com/dolthub/go-mysql-server"
-	"github.com/dolthub/go-mysql-server/sql"
 	"io"
-	"os"
 	"sync/atomic"
 
 	"github.com/dolthub/dolt/go/libraries/utils/set"
@@ -106,29 +101,6 @@ func (dl TableDataLocation) NewCreatingWriter(ctx context.Context, mvOpts DataMo
 		tableSch:    outSch,
 	}, nil
 }
-
-// NewCreatingWriter will create a TableWriteCloser for a DataLocation that will create a new table, or overwrite
-// an existing table.
-func (dl TableDataLocation) NewCreatingWriterWithProvider(ctx context.Context, mvOpts DataMoverOptions, root *doltdb.RootValue, sortedInput bool, outSch schema.Schema, statsCB noms.StatsCB, opts editor.Options, wr io.WriteCloser, provider dsqle.DoltDatabaseProvider, dSess *dsess.DoltSession) (table.TableWriteCloser, error) {
-	sess := editor.CreateTableEditSession(root, opts)
-	//tableEditor, err := sess.GetTableEditor(ctx, dl.Name, outSch)
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	return &tableEditorWriteCloser{
-		insertOnly:  true,
-		initialData: types.EmptyMap,
-		statsCB:     statsCB,
-		tableEditor: nil,
-		sess:        sess,
-		tableSch:    outSch,
-		provider:    provider,
-		dsess:       dSess,
-		tableName: dl.Name,
-	}, nil
-}
-
 
 // NewUpdatingWriter will create a TableWriteCloser for a DataLocation that will update and append rows based on
 // their primary key.
@@ -243,11 +215,6 @@ func (te *tableEditorWriteCloser) GetSchema() schema.Schema {
 
 // WriteRow implements TableWriteCloser
 func (te *tableEditorWriteCloser) WriteRow(ctx context.Context, r row.Row) error {
-	useCli := os.Getenv("dolt_import_engine")
-	if useCli == "true" {
-		return te.WriteRowToEngine(ctx, r)
-	}
-
 	if te.statsCB != nil && atomic.LoadInt32(&te.statOps) >= tableWriterStatUpdateRate {
 		atomic.StoreInt32(&te.statOps, 0)
 		te.statsCB(te.stats)
@@ -310,55 +277,6 @@ func (te *tableEditorWriteCloser) WriteRow(ctx context.Context, r row.Row) error
 		te.stats.Modifications++
 		return nil
 	}
-}
-
-func (te *tableEditorWriteCloser) WriteRowToEngine(ctx context.Context, r row.Row) error {
-	schema, err := sqlutil.FromDoltSchema(te.tableName, te.tableSch)
-	if err != nil {
-		return err
-	}
-	sqlCtx := sql.NewContext(ctx, sql.WithSession(te.dsess), sql.WithTracer(tracing.Tracer(ctx)))
-	sqlCtx.SetCurrentDatabase("impt")
-
-	if !te.tableCreate {
-		err := sqle.CreateShortCircuitCreateTable(sqlCtx, te.provider, "impt", te.tableName, schema)
-		if err != nil {
-			return err
-		}
-		te.tableCreate = true
-	}
-
-	dRow, err := sqlutil.DoltRowToSqlRow(r, te.tableSch)
-	if err != nil {
-		return err
-	}
-
-	ri := sql.RowsToRowIter(dRow)
-
-
-	if te.statsCB != nil && atomic.LoadInt32(&te.statOps) >= tableWriterStatUpdateRate {
-		atomic.StoreInt32(&te.statOps, 0)
-		te.statsCB(te.stats)
-	}
-
-	if te.insertOnly {
-		err = sqle.CreateShortCircuitInsert(sqlCtx, te.provider, "impt", te.tableName, ri, schema)
-		if err != nil {
-			return err
-		}
-
-		_ = atomic.AddInt32(&te.statOps, 1)
-		te.stats.Additions++
-
-		err = te.dsess.Flush(sqlCtx, "impt")
-		if err != nil {
-			return err
-		}
-		
-		return nil
-	}
-
-	return nil
 }
 
 // Close implements TableWriteCloser

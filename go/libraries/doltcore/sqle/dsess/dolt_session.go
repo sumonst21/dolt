@@ -118,6 +118,10 @@ func (s *DoltSession) SystemVariablesInConfig() ([]sql.SystemVariable, error) {
 	return SystemVariablesInConfig(s.globalsConf)
 }
 
+func (s *DoltSession) GetProvider() RevisionDatabaseProvider {
+	return s.provider
+}
+
 // validatePersistedSysVar checks whether a system variable exists and is dynamic
 func validatePersistableSysVar(name string) (sql.SystemVariable, interface{}, error) {
 	sysVar, val, ok := sql.SystemVariables.GetGlobal(name)

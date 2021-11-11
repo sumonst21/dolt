@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	dsqle "github.com/dolthub/dolt/go/libraries/doltcore/sqle"
-	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/dsess"
 	"github.com/dolthub/go-mysql-server/sql"
 	"io"
 	"os"
@@ -477,35 +476,10 @@ func newImportDataMover(ctx context.Context, root *doltdb.RootValue, dEnv *env.D
 	bulkTeaf := editor.NewBulkImportTEAFactory(root.VRW().Format(), root.VRW(), dEnv.TempTableFilesDir())
 	opts := editor.Options{Deaf: bulkTeaf}
 
-	mrEnv, _ := env.DoltEnvAsMultiEnv(ctx, dEnv)
-	dbs, _ := commands.CollectDBs(ctx, mrEnv)
-	pro := dsqle.NewDoltDatabaseProvider(mrEnv.Config(), mrEnv.FileSystem(), dsqleDBsAsSqlDBs(dbs)...)
-
-	nameToDB := make(map[string]dsqle.SqlDatabase)
-	var dbStates []dsess.InitialDbState
-	for _, db := range dbs {
-		nameToDB[db.Name()] = db
-
-		dbState, _ := dsqle.GetInitialDBState(ctx, db)
-		dbStates = append(dbStates, dbState)
-	}
-	doltSess, _ := dsess.NewDoltSession(sql.NewEmptyContext(), sql.NewBaseSession(), pro, mrEnv.Config(), dbStates...)
-
-	err = doltSess.SetSessionVariable(sql.NewContext(ctx), sql.AutoCommitSessionVar, true)
-
 	var wr table.TableWriteCloser
 	switch impOpts.operation {
 	case CreateOp:
-		filePath, err := dEnv.FS.Abs(impOpts.DestName())
-		if err != nil {
-			return nil, &mvdata.DataMoverCreationError{ErrType: mvdata.CreateWriterErr, Cause: err}
-		}
-		writer, err := dEnv.FS.OpenForWrite(filePath, os.ModePerm)
-		if err != nil {
-			return nil, &mvdata.DataMoverCreationError{ErrType: mvdata.CreateWriterErr, Cause: err}
-		}
-
-		wr, err = impOpts.dest.NewCreatingWriterWithProvider(ctx, impOpts, root, srcIsSorted, wrSch, statsCB, opts, writer, pro, doltSess)
+		wr, err = mvdata.NewSqlEngineMover(ctx, dEnv, wrSch, true, impOpts.dest.Name, statsCB)
 		if err != nil {
 			return nil, &mvdata.DataMoverCreationError{ErrType: mvdata.CreateWriterErr, Cause: err}
 		}

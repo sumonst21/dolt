@@ -43,6 +43,7 @@ import (
 	"github.com/dolthub/dolt/go/libraries/utils/config"
 	"github.com/dolthub/dolt/go/libraries/utils/tracing"
 	"github.com/dolthub/dolt/go/store/hash"
+	"github.com/dolthub/dolt/go/libraries/doltcore/sqle/cliengine"
 )
 
 const (
@@ -175,12 +176,12 @@ func processFilterQuery(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commi
 	itr := sql.RowsToRowIter() // empty RowIter
 	switch s := sqlStatement.(type) {
 	case *sqlparser.Insert, *sqlparser.Update:
-		_, itr, err = eng.query(sqlCtx, query)
+		_, itr, err = eng.Query(sqlCtx, query)
 
 	case *sqlparser.Delete:
-		_, itr, err = eng.query(sqlCtx, query)
+		_, itr, err = eng.Query(sqlCtx, query)
 	case *sqlparser.MultiAlterDDL:
-		_, itr, err = eng.query(sqlCtx, query)
+		_, itr, err = eng.Query(sqlCtx, query)
 	case *sqlparser.DDL:
 		_, err := sqlparser.ParseStrictDDL(query)
 		if se, ok := vterrors.AsSyntaxError(err); ok {
@@ -190,7 +191,7 @@ func processFilterQuery(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commi
 			return nil, fmt.Errorf("error parsing DDL: %v", err.Error())
 		}
 		// ddl returns a nil itr
-		_, _, err = eng.ddl(sqlCtx, s, query)
+		_, _, err = eng.Ddl(sqlCtx, s, query)
 
 	case *sqlparser.Select, *sqlparser.OtherRead, *sqlparser.Show, *sqlparser.Explain, *sqlparser.Union:
 		return nil, fmt.Errorf("filter-branch queries must be write queries: '%s'", query)
@@ -221,7 +222,7 @@ func processFilterQuery(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commi
 		return nil, err
 	}
 
-	roots, err := eng.getRoots(sqlCtx)
+	roots, err := eng.GetRoots(sqlCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +234,7 @@ func processFilterQuery(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commi
 // The SQL engine returned has transactions disabled. This is to prevent transactions starts from overwriting the root
 // we set manually with the one at the working set of the HEAD being rebased.
 // Some functionality will not work on this kind of engine, e.g. many DOLT_ functions.
-func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) (*sql.Context, *SqlEngine, error) {
+func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) (*sql.Context, *cliengine.SqlEngine, error) {
 	sess := dsess.DefaultSession().NewDoltSession(config.NewMapConfig(make(map[string]string)))
 
 	sqlCtx := sql.NewContext(ctx,
@@ -298,9 +299,9 @@ func rebaseSqlEngine(ctx context.Context, dEnv *env.DoltEnv, cm *doltdb.Commit) 
 
 	sqlCtx.SetCurrentDatabase(dbName)
 
-	se := &SqlEngine{
-		dbs:    map[string]dsqle.SqlDatabase{dbName: db},
-		engine: engine,
+	se := &cliengine.SqlEngine{
+		Dbs:    map[string]dsqle.SqlDatabase{dbName: db},
+		Engine: engine,
 	}
 
 	return sqlCtx, se, nil
