@@ -246,3 +246,7 @@ func (se *SqlEngine) Ddl(ctx *sql.Context, ddl *sqlparser.DDL, query string) (sq
 		return nil, nil, fmt.Errorf("Unhandled DDL action %v in query %v", ddl.Action, query)
 	}
 }
+
+func (se *SqlEngine) SetBatchMode() {
+	se.sess.EnableBatchedMode()
+}

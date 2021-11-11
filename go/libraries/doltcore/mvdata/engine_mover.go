@@ -3,6 +3,7 @@ package mvdata
 import (
 	"context"
 	"fmt"
+	"github.com/dolthub/dolt/go/cmd/dolt/errhand"
 	"github.com/dolthub/dolt/go/libraries/doltcore/env"
 	"github.com/dolthub/dolt/go/libraries/doltcore/row"
 	"github.com/dolthub/dolt/go/libraries/doltcore/schema"
@@ -55,6 +56,7 @@ func NewSqlEngineMover(ctx context.Context, dEnv *env.DoltEnv, tableSch schema.S
 		return nil, err
 	}
 
+	se.SetBatchMode()
 
 	sm := &SqlEngineMover{
 		se: se,
@@ -86,6 +88,12 @@ func (s *SqlEngineMover) WriteRow(ctx context.Context, r row.Row) error {
 	sqlCtx, err := s.se.NewContext(ctx)
 	if err != nil {
 		return nil
+	}
+
+	// TODO: Move this to factory
+	err = sqlCtx.Session.SetSessionVariable(sqlCtx, sql.AutoCommitSessionVar, false)
+	if err != nil {
+		return errhand.VerboseErrorFromError(err)
 	}
 
 	//if s.tableCreate {
