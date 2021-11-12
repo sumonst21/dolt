@@ -29,6 +29,7 @@ type SqlEngineMover struct {
 	statsCB noms.StatsCB
 	stats   types.AppliedEditStats
 	statOps int32
+ 	buffer []sql.Row
 }
 
 var _ table.TableWriteCloser = (*SqlEngineMover)(nil)
@@ -70,7 +71,6 @@ func NewSqlEngineMover(ctx context.Context, dEnv *env.DoltEnv, tableSch schema.S
 		return nil, errhand.VerboseErrorFromError(err)
 	}
 
-
 	sm := &SqlEngineMover{
 		se: se,
 		tableSch: tableSch,
@@ -79,6 +79,7 @@ func NewSqlEngineMover(ctx context.Context, dEnv *env.DoltEnv, tableSch schema.S
 		tableName: tableName,
 		statsCB: statsCB,
 		sqlCtx: sqlCtx,
+		buffer: make([]sql.Row, 0),
 	}
 
 	err = sm.createTable(sqlCtx)
@@ -95,7 +96,7 @@ func (s *SqlEngineMover) GetSchema() schema.Schema {
 
 func (s *SqlEngineMover) WriteRow(ctx context.Context, r row.Row) error {
 	sqlCtx := s.sqlCtx
-	
+
 	doltSchema, err := sqlutil.FromDoltSchema(s.tableName, s.tableSch)
 	if err != nil {
 		return err
@@ -111,9 +112,16 @@ func (s *SqlEngineMover) WriteRow(ctx context.Context, r row.Row) error {
 		s.statsCB(s.stats)
 	}
 
-	err = sqle.CreateShortCircuitInsert(sqlCtx, s.se.GetEngine().Analyzer, s.db, s.tableName, sql.RowsToRowIter(dRow), doltSchema)
-	if err != nil {
-		return err
+	if len(s.buffer) < 1000 {
+		s.buffer = append(s.buffer, dRow)
+	} else {
+		// TODO: This will drop some rows for now.
+		err = sqle.CreateShortCircuitInsert(sqlCtx, s.se.GetEngine().Analyzer, s.db, s.tableName, sql.RowsToRowIter(s.buffer...), doltSchema)
+		if err != nil {
+			return err
+		}
+
+		s.buffer = make([]sql.Row, 0)
 	}
 
 	_ = atomic.AddInt32(&s.statOps, 1)
