@@ -23,6 +23,7 @@ package badger
 
 import (
 	"context"
+	"github.com/dgraph-io/badger/v3/options"
 
 	badger "github.com/dgraph-io/badger/v3"
 
@@ -32,17 +33,24 @@ import (
 
 const dbDir = "badger_chunk_store"
 
-var (
+var (	
 	rootKey  = []byte("root")
-	csBucket = []byte("cs")
 )
 
+// TODO(andy): this is gross and bad
 var db *badger.DB
 
+type BadgerChunkStore struct {
+	*badger.DB
+}
+
+var _ chunks.ChunkStore = BadgerChunkStore{}
+var _ chunks.ChunkStoreGarbageCollector = BadgerChunkStore{}
+
 func NewBadgerChunkStore(ctx context.Context, dir string) (cs BadgerChunkStore, err error) {
-	// TODO(andy): this is gross and bad
+
 	if db == nil {
-		db, err = badger.Open(badger.DefaultOptions(dbDir))
+		db, err = badger.Open(getOptions())
 		if err != nil {
 			return cs, err
 		}
@@ -66,14 +74,11 @@ func maybeInitBoltStore(db *badger.DB) error {
 	})
 }
 
-type BadgerChunkStore struct {
-	*badger.DB
+func getOptions() badger.Options {
+	opts := badger.DefaultOptions(dbDir)
+	opts.Compression = options.None
+	return opts
 }
-
-var _ chunks.ChunkStore = BadgerChunkStore{}
-var _ chunks.ChunkStoreGarbageCollector = BadgerChunkStore{}
-
-//var _ chunks.LoggingChunkStore = BadgerChunkStore{}
 
 // Get the Chunk for the value of the hash in the store. If the hash is
 // isAbsent from the store EmptyChunk is returned.
